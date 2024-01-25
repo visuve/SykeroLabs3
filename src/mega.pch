@@ -1,0 +1,7 @@
+#pragma once
+
+#include <gpiod.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <cstdint>
+#include <vector>
