@@ -7,3 +7,30 @@
 ## Parts 
 
 - https://www.waveshare.com/wiki/RPi_Relay_Board_(B)
+
+## Pins
+
+- https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#gpio-and-the-40-pin-header
+
+| Usage            | Capability    | Name     | Pin | Pin | Name     | Capability     | Usage            |
+|:-----------------|--------------:|:--------:|:---:|:---:|:--------:|:---------------|-----------------:|
+| None             |               | +3.3v    | 1   | 2   | +5v      |                | None             |
+| None             | I2C SDA       | GPIO 2   | 3   | 4   | +5v      |                | None             |
+| None             | I2C SCL       | GPIO 3   | 5   | 6   | Ground   |                | None             |
+| None             |               | GPIO 4   | 7   | 8   | GPIO 14  | UART TX        | None             |
+| None             |               | Ground   | 9   | 10  | GPIO 15  | UART RX        | None             |
+| None             |               | GPIO 17  | 11  | 12  | GPIO 18  | PCM CLK / PWM0 | None             |
+| Reservoir Pump 1 |               | GPIO 27  | 13  | 14  | Ground   |                | None             |
+| None             |               | GPIO 22  | 15  | 16  | GPIO 23  |                | Fan 1 Tachometer |
+| None             |               | +3.3v    | 17  | 18  | GPIO 24  |                | Fan 2 Tachometer |
+| None             | SPI MOSI      | GPIO 10  | 19  | 20  | Ground   |                | None             |
+| None             | SPI MISO      | GPIO 9   | 21  | 22  | GPIO 25  |                | None             |
+| None             | SPI CLK       | GPIO 11  | 23  | 24  | GPIO 8   | SPI CE0        | None             |
+| None             |               | Ground   | 25  | 26  | GPIO 7   | SPI CE1        | None             |
+| None             | I2C ID EEPROM | GPIO 0   | 27  | 28  | Reserved | I2C ID EEPROM  | None             |
+| NFT Pump 1       |               | GPIO 5   | 29  | 30  | Ground   |                | None             |
+| NFT Pump 2       |               | GPIO 6   | 31  | 32  | GPIO 12  | PWM0           | Fan 1 & 2 PWM    |
+| None             | PWM1          | GPIO 13  | 33  | 34  | Ground   |                | None             |
+| Fan 1 Toggle     | PWM1 / PCM FS | GPIO 19  | 35  | 36  | GPIO 16  |                | Reservoir Pump 2 |
+| Relay 8 (unused) |               | GPIO 26  | 37  | 38  | GPIO 20  | PCM DIN        | Fan 2 Toggle     |
+| None             |               | Ground   | 39  | 40  | GPIO 21  | PCM DOUT       | Relay 7 (unused) |
