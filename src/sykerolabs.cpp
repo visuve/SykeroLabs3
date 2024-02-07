@@ -1,7 +1,10 @@
 // https://github.com/brgl/libgpiod/tree/v1.6.x/bindings/cxx/examples
 // https://framagit.org/cpb/example-programs-using-libgpiod/-/tree/master
 
+// Just to fool Visual Studio Intellisense
+#ifndef RASPBERRY
 #include "mega.pch"
+#endif
 
 namespace sl
 {
@@ -129,6 +132,8 @@ namespace sl
 
 			std::this_thread::sleep_for(std::chrono::seconds(1));
 		}
+
+		return 0;
 	}
 }
 
