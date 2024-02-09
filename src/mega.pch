@@ -2,6 +2,7 @@
 
 // Standard libraries
 #include <array>
+#include <bitset>
 #include <atomic>
 #include <cassert>
 #include <chrono>

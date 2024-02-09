@@ -81,32 +81,37 @@ namespace sl
 
 		void read(std::array<gpio_data, N>& data)
 		{
-			gpio_v2_line_values values = { 0 };
+			std::bitset<64> mask;
+			std::bitset<64> bits;
 
 			for (size_t i = 0; i < N; ++i)
 			{
-				values.mask |= (1ull << i);
+				mask[i] = true;
 			}
 
+			gpio_v2_line_values values = { 0, mask.to_ullong() };
 			ioctl(GPIO_V2_LINE_GET_VALUES_IOCTL, &values);
+			bits = values.bits;
 
 			for (size_t i = 0; i < N; ++i)
 			{
 				data[i].offset = _offsets[i];
-				data[i].value = values.bits & (1ull << i);
+				data[i].value = bits[i];
 			}
 		}
 
 		void write(const std::array<gpio_data, N>& data)
 		{
-			gpio_v2_line_values values = { 0 };
+			std::bitset<64> mask;
+			std::bitset<64> bits;
 
 			for (size_t i = 0; i < N; ++i)
 			{
-				values.mask |= (1ull << i);
-				values.bits |= (uint64_t(data[i].value) << i);
+				mask[i] = true;
+				bits[i] = data[i].value;
 			}
 
+			gpio_v2_line_values values = { bits.to_ullong(), mask.to_ullong() };
 			ioctl(GPIO_V2_LINE_SET_VALUES_IOCTL, &values);
 		}
 
