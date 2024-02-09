@@ -181,6 +181,10 @@ namespace sl
 
 		uint64_t t = 0;
 
+		std::ifstream thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
+
+		float temperature = 0.0;
+
 		while (!signaled)
 		{
 			std::cout << "\nT=" << ++t << ": \n";
@@ -202,6 +206,11 @@ namespace sl
 			};
 
 			output_lines.write(output_data);
+
+			thermal_zone0 >> temperature;
+			thermal_zone0.seekg(0, std::ios::beg);
+
+			std::cout << "CPU @ " << temperature / 1000 << "c\n";
 
 			std::this_thread::sleep_for(std::chrono::seconds(1));
 		}
