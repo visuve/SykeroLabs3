@@ -8,6 +8,7 @@
 #include <chrono>
 #include <csignal>
 #include <cstdint>
+#include <span>
 #include <thread>
 #include <iostream>
 #include <fstream>

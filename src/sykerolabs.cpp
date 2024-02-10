@@ -63,7 +63,7 @@ namespace sl
 		int _descriptor = 0;
 	};
 
-	struct gpio_data
+	struct gpio_lvp // line value pair
 	{
 		uint32_t offset = 0;
 		bool value = true;
@@ -73,49 +73,83 @@ namespace sl
 	class gpio_line_group : private gpio_descriptor
 	{
 	public:
+		static_assert(N <= 64);
+
 		constexpr gpio_line_group(int descriptor, const uint32_t(&offsets)[N]) :
 			gpio_descriptor(descriptor)
 		{
 			clone(_offsets, offsets);
 		}
 
-		void read(std::array<gpio_data, N>& data)
+		void read(std::span<gpio_lvp> data) const
 		{
+			assert(data.size() <= N);
+
 			std::bitset<64> mask;
 			std::bitset<64> bits;
 
-			for (size_t i = 0; i < N; ++i)
+			for (const gpio_lvp& lvp : data)
 			{
-				mask[i] = true;
+				size_t i = offset_to_index(lvp.offset);
+				mask.set(i, true);
 			}
 
 			gpio_v2_line_values values = { 0, mask.to_ullong() };
 			ioctl(GPIO_V2_LINE_GET_VALUES_IOCTL, &values);
 			bits = values.bits;
 
-			for (size_t i = 0; i < N; ++i)
+			for (gpio_lvp& lvp : data)
 			{
-				data[i].offset = _offsets[i];
-				data[i].value = bits[i];
+				size_t i = offset_to_index(lvp.offset);
+				lvp.value = bits[i];
 			}
 		}
 
-		void write(const std::array<gpio_data, N>& data)
+		void readz(gpio_lvp& lvp) const
 		{
+			gpio_lvp data[] = { lvp };
+			read(data);
+			lvp = data[0];
+		}
+
+		void write(std::span<gpio_lvp> data) const
+		{
+			assert(data.size() <= N);
+
 			std::bitset<64> mask;
 			std::bitset<64> bits;
 
-			for (size_t i = 0; i < N; ++i)
+			for (const gpio_lvp& lvp : data)
 			{
-				mask[i] = true;
-				bits[i] = data[i].value;
+				size_t i = offset_to_index(lvp.offset);
+				mask.set(i, true);
+				bits.set(i, lvp.value);
 			}
 
 			gpio_v2_line_values values = { bits.to_ullong(), mask.to_ullong() };
 			ioctl(GPIO_V2_LINE_SET_VALUES_IOCTL, &values);
 		}
 
+		void writez(const gpio_lvp& lvp) const
+		{
+			gpio_lvp data[] = { lvp };
+			write(data);
+		}
+
 	private:
+		inline size_t offset_to_index(uint32_t offset) const
+		{
+			for (size_t i = 0; i < N; ++i)
+			{
+				if (_offsets[i] == offset)
+				{
+					return i;
+				}
+			}
+
+			throw std::invalid_argument("Offset not found");
+		}
+
 		uint32_t _offsets[N];
 	};
 
@@ -194,20 +228,25 @@ namespace sl
 		{
 			std::cout << "\nT=" << ++t << ": \n";
 
-			std::array<gpio_data, 2> input_data;
+			std::array<gpio_lvp, 2> input_data =
+			{
+				gpio_lvp(pins::RESERVOIR_PUMP_1),
+				gpio_lvp(pins::RESERVOIR_PUMP_2)
+			};
+
 			input_lines.read(input_data);
 
 			for (auto& input : input_data)
 			{
 				std::cout << input.offset << '=' << input.value << '\n';
-			}
+			}			
 
-			std::array<gpio_data, 4> output_data =
+			std::array<gpio_lvp, 4> output_data =
 			{
-				gpio_data(pins::NFT_PUMP_1, t % 4 == 0),
-				gpio_data(pins::NFT_PUMP_2, t % 4 == 1),
-				gpio_data(pins::FAN_1_RELAY, t % 4 == 2),
-				gpio_data(pins::FAN_2_RELAY, t % 4 == 3)
+				gpio_lvp(pins::NFT_PUMP_1, t % 4 == 0),
+				gpio_lvp(pins::NFT_PUMP_2, t % 4 == 1),
+				gpio_lvp(pins::FAN_1_RELAY, t % 4 == 2),
+				gpio_lvp(pins::FAN_2_RELAY, t % 4 == 3)
 			};
 
 			output_lines.write(output_data);
