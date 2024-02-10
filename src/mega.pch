@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard libraries
+#include <algorithm>
 #include <array>
 #include <bitset>
 #include <atomic>
@@ -8,6 +9,7 @@
 #include <chrono>
 #include <csignal>
 #include <cstdint>
+#include <set>
 #include <span>
 #include <thread>
 #include <iostream>

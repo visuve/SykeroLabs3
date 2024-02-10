@@ -69,21 +69,19 @@ namespace sl
 		bool value = true;
 	};
 
-	template <size_t N>
 	class gpio_line_group : private gpio_descriptor
 	{
 	public:
-		static_assert(N <= 64);
 
-		constexpr gpio_line_group(int descriptor, const uint32_t(&offsets)[N]) :
-			gpio_descriptor(descriptor)
+		gpio_line_group(int descriptor, const std::set<uint32_t>& offsets) :
+			gpio_descriptor(descriptor),
+			_offsets(offsets)
 		{
-			clone(_offsets, offsets);
 		}
 
 		void read(std::span<gpio_lvp> data) const
 		{
-			assert(data.size() <= N);
+			assert(data.size() <= _offsets.size());
 
 			std::bitset<64> mask;
 			std::bitset<64> bits;
@@ -114,7 +112,7 @@ namespace sl
 
 		void write(std::span<gpio_lvp> data) const
 		{
-			assert(data.size() <= N);
+			assert(data.size() <= _offsets.size());
 
 			std::bitset<64> mask;
 			std::bitset<64> bits;
@@ -139,18 +137,17 @@ namespace sl
 	private:
 		inline size_t offset_to_index(uint32_t offset) const
 		{
-			for (size_t i = 0; i < N; ++i)
+			auto iter = std::find(_offsets.cbegin(), _offsets.cend(), offset);
+
+			if (iter == _offsets.cend())
 			{
-				if (_offsets[i] == offset)
-				{
-					return i;
-				}
+				throw std::invalid_argument("Offset not found");
 			}
 
-			throw std::invalid_argument("Offset not found");
+			return std::distance(_offsets.cbegin(), iter);
 		}
 
-		uint32_t _offsets[N];
+		std::set<uint32_t> _offsets;
 	};
 
 	// https://github.com/torvalds/linux/blob/master/tools/gpio/lsgpio.c
@@ -167,34 +164,40 @@ namespace sl
 			}
 		}
 
-		template <size_t N>
-		gpio_line_group<N> lines(uint64_t flags, const uint32_t(&offsets)[N]) const
+		gpio_line_group lines(uint64_t flags, const std::set<uint32_t>& offsets) const
 		{
 			gpio_v2_line_config config = { 0 };
 			config.flags = flags;
 
 			gpio_v2_line_request request = { 0 };
 			request.config = config;
-			request.num_lines = N;
+			request.num_lines = offsets.size();
 
-			clone(request.offsets, offsets);
+			size_t i = 0;
+
+			for (uint32_t offset : offsets)
+			{
+				request.offsets[i] = offset;
+				++i;
+			}
+			
 			clone(request.consumer, "sykerolabs");
 
 			gpio_descriptor::ioctl(GPIO_V2_GET_LINE_IOCTL, &request);
 
-			return gpio_line_group<N>(request.fd, offsets);
+			return gpio_line_group(request.fd, offsets);
 		}
 	};
 
 	int run()
 	{
-		const uint32_t input_pins[] =
+		const std::set<uint32_t> input_pins =
 		{
 			pins::RESERVOIR_PUMP_1,
 			pins::RESERVOIR_PUMP_2
 		};
 
-		const uint32_t output_pins[] =
+		const std::set<uint32_t> output_pins =
 		{
 			pins::NFT_PUMP_1,
 			pins::NFT_PUMP_2,
@@ -202,7 +205,7 @@ namespace sl
 			pins::FAN_2_RELAY
 		};
 
-		const uint32_t interrupt_pins[] =
+		const std::set<uint32_t> interrupt_pins =
 		{
 			pins::FAN_1_TACHOMETER,
 			pins::FAN_2_TACHOMETER
