@@ -13,7 +13,7 @@
 - https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#gpio-and-the-40-pin-header
 
 | Usage            | Capability    | Name     | Pin | Pin | Name     | Capability     | Usage            |
-|:-----------------|--------------:|:--------:|:---:|:---:|:--------:|:---------------|-----------------:|
+|------------------|---------------|:--------:|:---:|:---:|:--------:|----------------|------------------|
 | None             |               | +3.3v    | 1   | 2   | +5v      |                | None             |
 | None             | I2C SDA       | GPIO 2   | 3   | 4   | +5v      |                | None             |
 | None             | I2C SCL       | GPIO 3   | 5   | 6   | Ground   |                | None             |
@@ -34,3 +34,12 @@
 | Fan 1 Toggle     | PWM1 / PCM FS | GPIO 19  | 35  | 36  | GPIO 16  |                | Reservoir Pump 2 |
 | Relay 8 (unused) |               | GPIO 26  | 37  | 38  | GPIO 20  | PCM DIN        | Fan 2 Toggle     |
 | None             |               | Ground   | 39  | 40  | GPIO 21  | PCM DOUT       | Relay 7 (unused) |
+
+
+## Notes
+
+In order to make the PWM work ``/boot/firmware/config.txt`` needs to be stabbed.
+
+Change the line ´´dtoverlay=something something´´ to ``dtoverlay=pwm,pin=12,func=4``. Note the pin diagram above.
+
+See https://github.com/dotnet/iot/blob/main/Documentation/raspi-pwm.md for more details.

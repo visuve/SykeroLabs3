@@ -28,18 +28,20 @@ namespace sl
 	class raii_descriptor
 	{
 	public:
+		raii_descriptor() = default;
+
 		raii_descriptor(int descriptor) :
 			_descriptor(descriptor)
 		{
 			if (_descriptor < 0)
 			{
-				throw std::system_error(errno, std::system_category(), "open");
+				throw std::system_error(errno, std::system_category(), "invalid descriptor");
 			}
 		}
 
-		raii_descriptor(std::string_view path, int mode = O_RDONLY) :
-			raii_descriptor(open(path.data(), mode))
+		raii_descriptor(const std::filesystem::path& path, int mode = O_RDONLY)
 		{
+			open(path, mode);
 		}
 
 		inline virtual ~raii_descriptor()
@@ -47,6 +49,21 @@ namespace sl
 			if (_descriptor > 0)
 			{
 				close(_descriptor);
+			}
+		}
+
+		void open(const std::filesystem::path& path, int mode)
+		{
+			if (_descriptor > 0)
+			{
+				close(_descriptor);
+			}
+
+			_descriptor = ::open(path.c_str(), mode);
+
+			if (_descriptor < 0)
+			{
+				throw std::system_error(errno, std::system_category(), path.c_str());
 			}
 		}
 
@@ -76,6 +93,37 @@ namespace sl
 		bool read_value(T& t) const
 		{
 			return raii_descriptor::read(&t, sizeof(T));
+		}
+
+		void write(const void* data, size_t size) const
+		{
+			int result = ::write(_descriptor, data, size);
+
+			if (result < 0)
+			{
+				throw std::system_error(errno, std::system_category(), "write");
+			}
+
+			if (result != size)
+			{
+				throw std::system_error(-EIO, std::system_category(), "write");
+			}
+		}
+
+		template <typename T>
+		void write_value(T& t) const
+		{
+			return raii_descriptor::write(&t, sizeof(T));
+		}
+
+		void write_text(std::string_view text) const
+		{
+			return raii_descriptor::write(text.data(), text.size());
+		}
+
+		void fsync()
+		{
+			::fsync(_descriptor);
 		}
 
 		void lseek(off_t offset, int whence) const
@@ -122,6 +170,12 @@ namespace sl
 
 	struct gpio_lvp // line value pair
 	{
+		gpio_lvp(uint32_t offset, bool value = true) :
+			offset(offset),
+			value(value)
+		{
+		}
+
 		uint32_t offset = 0;
 		bool value = true;
 	};
@@ -219,13 +273,9 @@ namespace sl
 	class gpio_chip : public raii_descriptor
 	{
 	public:
-		inline gpio_chip(std::string_view name) :
-			raii_descriptor(name)
+		gpio_chip(const std::filesystem::path& path) :
+			raii_descriptor(path)
 		{
-			if (_descriptor < 0)
-			{
-				throw std::system_error(errno, std::system_category(), name.data());
-			}
 		}
 
 		gpio_line_group lines(uint64_t flags, const std::set<uint32_t>& offsets) const
@@ -253,6 +303,71 @@ namespace sl
 		}
 	};
 
+	class pwm_chip
+	{
+	public:
+		pwm_chip(
+			const std::filesystem::path& path, 
+			uint8_t line_number,
+			float frequency,
+			float initial_percent = 0) :
+			_path(path)
+		{
+			std::string line = "pwm" + std::to_string(line_number);
+
+			if (!std::filesystem::exists(path / line))
+			{
+				raii_descriptor export_file(path / "export", O_WRONLY);
+				export_file.write_text(std::to_string(line_number));
+				std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			}
+
+			_period_file.open(path / line / "period", O_WRONLY);
+			_duty_cycle_file.open(path / line / "duty_cycle", O_WRONLY);
+
+			set_frequency(frequency);
+			set_duty_percent(initial_percent);
+
+			raii_descriptor enabled(path / line / "enable", O_WRONLY);
+			enabled.write_text("1");
+		}
+
+		void set_frequency(float frequency)
+		{
+			if (frequency < 0)
+			{
+				throw std::invalid_argument("Frequency must be a positive float");
+			}
+
+			_period_ns = (1.0f / frequency) * 1000000000.0f;
+			_period_file.write_text(std::to_string(_period_ns));
+		}
+
+		void set_duty_percent(float percent)
+		{
+			if (percent < 0.0f || percent > 100.0f)
+			{
+				throw std::invalid_argument("Percentage must be between 0 and 100");
+			}
+
+			if (_period_ns < 0)
+			{
+				throw std::logic_error("Set frequency first!");
+			}
+
+			std::string duty_cycle = std::to_string(int64_t(_period_ns * (percent / 100.0f)));
+
+			_duty_cycle_file.write_text(duty_cycle);
+		}
+
+	private:
+		int64_t _period_ns = 0;
+		raii_descriptor _period_file;
+		raii_descriptor _duty_cycle_file;
+
+		const std::filesystem::path _path;
+	};
+
 	int run()
 	{
 		const std::set<uint32_t> input_pins =
@@ -275,9 +390,7 @@ namespace sl
 			pins::FAN_2_TACHOMETER
 		};
 
-		constexpr char chip_name[] = "/dev/gpiochip4";
-
-		gpio_chip chip(chip_name);
+		gpio_chip chip("/dev/gpiochip4");
 
 		gpio_line_group input_lines =
 			chip.lines(GPIO_V2_LINE_FLAG_INPUT, input_pins);
@@ -288,11 +401,15 @@ namespace sl
 		//gpio_line_group monitor_lines =
 		//	chip.lines(GPIO_V2_LINE_FLAG_EDGE_RISING, monitor_pins);
 
+		// Confusingly enough, the Rasperry Pi PWM 0 is in pwmchip2
+		// Fans use 25kHz https://www.mouser.com/pdfDocs/San_Ace_EPWMControlFunction.pdf
+		pwm_chip pwm("/sys/class/pwm/pwmchip2", 0, 25000);
+
 		uint64_t t = 0;
 
 		raii_descriptor thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
 
-		std::string temperature(5, '\0');
+		std::string temperature(5, 0);
 
 		while (!signaled)
 		{
@@ -326,7 +443,10 @@ namespace sl
 
 			std::cout << "CPU @ " << std::stof(temperature) / 1000.0f << "c\n";
 
+			pwm.set_duty_percent(t % 100);
+
 			std::this_thread::sleep_for(std::chrono::seconds(1));
+
 		}
 
 		return 0;
