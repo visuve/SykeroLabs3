@@ -31,6 +31,8 @@ namespace sl
 
 	constexpr size_t fan_count = 2;
 	std::atomic<int64_t> fan_rpms[fan_count] = { 0 };
+	std::atomic<float> cpu_celcius = 0;
+	std::atomic<float> environment_celcius = 0;
 
 	void measure_fans(const gpio_line_group& monitor_lines)
 	{
@@ -73,6 +75,36 @@ namespace sl
 		}
 	}
 
+	void measure_temperature(const file_descriptor& thermal_zone0, const file_descriptor& ds18b20)
+	{
+		std::string buffer(5, 0);
+
+		while (!signaled)
+		{
+			auto before = std::chrono::steady_clock::now();
+
+			thermal_zone0.read_text(buffer);
+			thermal_zone0.lseek(0, SEEK_SET);
+
+			cpu_celcius = std::stof(buffer) / 1000.0f;
+
+			ds18b20.read_text(buffer); // This tends to take about a second...
+			ds18b20.lseek(0, SEEK_SET);
+
+			environment_celcius = std::stof(buffer) / 1000.0f;
+
+			auto after = std::chrono::steady_clock::now();
+			auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(after - before);
+
+			auto delay = diff - std::chrono::milliseconds(1000);
+
+			if (delay > std::chrono::milliseconds(0))
+			{
+				sl::nanosleep(delay);
+			}
+		}
+	}
+
 	int run()
 	{
 		const std::set<uint32_t> input_pins =
@@ -111,13 +143,13 @@ namespace sl
 		// https://noctua.at/pub/media/wysiwyg/Noctua_PWM_specifications_white_paper.pdf
 		pwm_chip pwm("/sys/class/pwm/pwmchip2", 0, 25000);
 
+		file_descriptor thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
+		file_descriptor ds18b20("/sys/bus/w1/devices/28-485eb00164ff/temperature"); // TODO: remove hard coded guess
+
 		uint64_t t = 0;
 
-		file_descriptor thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
-
-		std::string temperature(5, 0);
-
-		std::jthread thread(measure_fans, monitor_lines);
+		std::jthread fan_measurement_thread(measure_fans, monitor_lines);
+		std::jthread temperature_measurement_thread(measure_temperature, thermal_zone0, ds18b20);
 
 		while (!signaled)
 		{
@@ -151,10 +183,8 @@ namespace sl
 				std::cout << "Fan " << i + 1 << " = " << fan_rpms[i] << " RPM\n";
 			}
 
-			thermal_zone0.read_text(temperature);
-			thermal_zone0.lseek(0, SEEK_SET);
-
-			std::cout << "CPU = " << std::stof(temperature) / 1000.0f << "c\n";
+			std::cout << "CPU = " << cpu_celcius << "c\n";
+			std::cout << "Environment = " << environment_celcius << "c\n";
 
 			pwm.set_duty_percent(t % 100);
 
