@@ -110,20 +110,47 @@ namespace sl
 
 		return 0;
 	}
+
+	struct syslog_facility
+	{
+		syslog_facility(int facility)
+		{
+#ifdef NDEBUG
+			setlogmask(LOG_UPTO(LOG_WARNING));
+#else
+			setlogmask(LOG_UPTO(LOG_DEBUG));
+#endif
+			openlog("sykerolabs", LOG_CONS | LOG_PID | LOG_NDELAY, facility);
+
+			syslog(LOG_INFO, "Sykerolabs starting");
+		}
+
+		~syslog_facility()
+		{
+			syslog(LOG_INFO, "Sykerolabs stopped");
+
+			closelog();
+		}
+	};
 }
 
 int main()
 {
+	sl::syslog_facility slsf(LOG_LOCAL0);
+
 	std::signal(SIGINT, sl::signal_handler);
 
 	try
 	{
-		std::cout << "Starting...\n";
 		return sl::run();
 	}
 	catch (const std::system_error& e)
 	{
-		std::cout << e.what() << std::endl;
+		syslog(LOG_CRIT, "std::system_error: %s", e.what());
+	}
+	catch (const std::exception& e)
+	{
+		syslog(LOG_CRIT, "std::exception: %s", e.what());
 	}
 
 	return -1;

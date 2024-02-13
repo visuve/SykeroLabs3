@@ -20,10 +20,17 @@ namespace sl
 
 	file_descriptor::~file_descriptor()
 	{
-		if (_descriptor > 0 && ::close(_descriptor) < 0)
+		if (_descriptor > 0)
 		{
-			// Do not throw however tempting that would be
-			std::cerr << "Failed to close\n";
+			if (::fsync(_descriptor) < 0)
+			{
+				syslog(LOG_ERR, "fsync(%d) failed. Errno %d", _descriptor, errno);
+			}
+
+			if (::close(_descriptor) < 0)
+			{
+				syslog(LOG_ERR, "close(%d) failed. Errno %d", _descriptor, errno);
+			}
 		}
 	}
 
@@ -39,14 +46,23 @@ namespace sl
 		}
 	}
 
-	void file_descriptor::close()
+	void file_descriptor::close(bool sync)
 	{
 		if (_descriptor <= 0)
 		{
 			return;
 		}
 
-		if (::close(_descriptor) < 0)
+		if (sync)
+		{
+			file_descriptor::fsync();
+		}
+
+		int result = ::close(_descriptor);
+
+		_descriptor = 0;
+
+		if (result < 0)
 		{
 			throw std::system_error(errno, std::system_category(), "close");
 		}
@@ -58,12 +74,14 @@ namespace sl
 
 		if (result < 0)
 		{
-			if (errno == -EAGAIN)
+			result = errno;
+
+			if (result == -EAGAIN)
 			{
 				return false; // No data
 			}
 
-			throw std::system_error(errno, std::system_category(), "read");
+			throw std::system_error(result, std::system_category(), "read");
 		}
 
 		if (result != size)

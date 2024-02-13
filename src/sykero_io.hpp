@@ -11,7 +11,7 @@ namespace sl
 		virtual ~file_descriptor();
 
 		void open(const std::filesystem::path& path, int mode);
-		void close();
+		void close(bool sync = true);
 
 		bool read(void* data, size_t size) const;
 		bool read_text(std::string& text) const;
