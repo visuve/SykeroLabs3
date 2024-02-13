@@ -18,6 +18,12 @@ namespace sl
 		file_descriptor(descriptor),
 		_offsets(offsets)
 	{
+		syslog(LOG_INFO, "gpio_line_group %d opened.", _descriptor);
+	}
+
+	gpio_line_group::~gpio_line_group()
+	{
+		syslog(LOG_INFO, "gpio_line_group %d closed.", _descriptor);
 	}
 
 	void gpio_line_group::read_values(std::span<gpio_lvp> data) const
@@ -100,6 +106,12 @@ namespace sl
 	gpio_chip::gpio_chip(const std::filesystem::path& path) :
 		file_descriptor(path)
 	{
+		syslog(LOG_INFO, "gpio_chip %d opened. Path: %s", _descriptor, path.c_str());
+	}
+
+	gpio_chip::~gpio_chip()
+	{
+		syslog(LOG_INFO, "gpio_chip %d closed.", _descriptor);
 	}
 
 	gpio_line_group gpio_chip::line_group(uint64_t flags, const std::set<uint32_t>& offsets) const

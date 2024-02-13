@@ -13,7 +13,8 @@ namespace sl
 		}
 	}
 
-	file_descriptor::file_descriptor(const std::filesystem::path& path, int mode)
+	file_descriptor::file_descriptor(const std::filesystem::path& path, int mode) :
+		_descriptor(0)
 	{
 		open(path, mode);
 	}

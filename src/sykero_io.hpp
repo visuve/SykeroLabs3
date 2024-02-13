@@ -51,7 +51,6 @@ namespace sl
 
 		void poll(std::chrono::milliseconds timeout) const;
 
-	private:
 		int _descriptor = 0;
 	};
 }

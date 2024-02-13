@@ -21,6 +21,7 @@ namespace sl
 	{
 	public:
 		gpio_line_group(int descriptor, const std::set<uint32_t>& offsets);
+		~gpio_line_group();
 
 		void read_values(std::span<gpio_lvp> data) const;
 		void read_value(gpio_lvp& lvp) const;
@@ -39,6 +40,7 @@ namespace sl
 	{
 	public:
 		gpio_chip(const std::filesystem::path& path);
+		~gpio_chip();
 
 		gpio_line_group line_group(uint64_t flags, const std::set<uint32_t>& offsets) const;
 	};
