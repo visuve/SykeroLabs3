@@ -25,6 +25,7 @@ namespace sl
 
 	void signal_handler(int signal)
 	{
+		syslog(LOG_NOTICE, "Signaled: %d", signal);
 		signaled = signal;
 	}
 
@@ -105,7 +106,7 @@ namespace sl
 
 			pwm.set_duty_percent(t % 100);
 
-			sl::nanosleep(std::chrono::seconds(1));
+			sl::nanosleep(std::chrono::milliseconds(1000));
 		}
 
 		return 0;

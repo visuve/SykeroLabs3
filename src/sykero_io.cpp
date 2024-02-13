@@ -23,11 +23,6 @@ namespace sl
 	{
 		if (_descriptor > 0)
 		{
-			if (::fsync(_descriptor) < 0)
-			{
-				syslog(LOG_ERR, "fsync(%d) failed. Errno %d", _descriptor, errno);
-			}
-
 			if (::close(_descriptor) < 0)
 			{
 				syslog(LOG_ERR, "close(%d) failed. Errno %d", _descriptor, errno);
@@ -77,7 +72,7 @@ namespace sl
 		{
 			result = errno;
 
-			if (result == -EAGAIN)
+			if (result == EAGAIN)
 			{
 				return false; // No data
 			}

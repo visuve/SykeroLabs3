@@ -38,8 +38,13 @@
 
 ## Notes
 
-In order to make the PWM work ``/boot/firmware/config.txt`` needs to be stabbed.
+### Prerequisites
 
-Change the line ´´dtoverlay=something something´´ to ``dtoverlay=pwm,pin=12,func=4``. Note the pin diagram above.
+- In order to make the PWM work ``/boot/firmware/config.txt`` needs to be stabbed.
+	- Change the line ``dtoverlay=something something`` to ``dtoverlay=pwm,pin=12,func=4``. Note the pin diagram above.
+	- See https://github.com/dotnet/iot/blob/main/Documentation/raspi-pwm.md for more details.
 
-See https://github.com/dotnet/iot/blob/main/Documentation/raspi-pwm.md for more details.
+### Debugging
+
+- The application logs can be viewed with ``journalctl -f -t sykerolabs``.
+	- Assuming you use [Rasbpberry Pi OS](https://www.raspberrypi.com/software/) on the target...

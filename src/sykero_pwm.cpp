@@ -14,9 +14,10 @@ namespace sl
 		{
 			file_descriptor export_file(path / "export", O_WRONLY);
 			export_file.write_text(std::to_string(line_number));
+			export_file.fsync();
 			export_file.close();
 
-			std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			sl::nanosleep(std::chrono::milliseconds(500));
 		}
 
 		_period.open(line_path / "period", O_WRONLY);

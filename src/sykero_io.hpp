@@ -55,7 +55,7 @@ namespace sl
 	};
 
 	template<typename Rep, typename Period>
-	std::chrono::nanoseconds nanosleep(const std::chrono::duration<Rep, Period>& time)
+	std::chrono::duration<Rep, Period> nanosleep(const std::chrono::duration<Rep, Period>& time)
 	{
 		auto secs = std::chrono::duration_cast<std::chrono::seconds>(time);
 		auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(time - secs);
@@ -76,12 +76,16 @@ namespace sl
 		{
 			result = errno;
 
-			if (result != -EINTR)
+			if (result != EINTR)
 			{
 				throw std::system_error(result, std::system_category(), "nanosleep");
 			}
 		}
 
-		return std::chrono::seconds(remaining.tv_sec) + std::chrono::nanoseconds(remaining.tv_sec);
+		secs = std::chrono::seconds(remaining.tv_sec);
+		nanos = std::chrono::nanoseconds(remaining.tv_nsec);
+
+		// Cast back to the accuracy the request was made
+		return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(nanos + secs);
 	}
 }
