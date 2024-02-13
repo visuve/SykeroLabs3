@@ -12,12 +12,14 @@ namespace sl
 			uint8_t line_number,
 			float frequency,
 			float initial_percent = 0);
+		~pwm_chip();
 
 		void set_frequency(float frequency);
 
 		void set_duty_percent(float percent);
 
 	private:
+		const std::filesystem::path line_path;
 		int64_t _period_ns = 0;
 		file_descriptor _period;
 		file_descriptor _duty_cycle;

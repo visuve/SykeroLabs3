@@ -53,4 +53,35 @@ namespace sl
 
 		int _descriptor = 0;
 	};
+
+	template<typename Rep, typename Period>
+	std::chrono::nanoseconds nanosleep(const std::chrono::duration<Rep, Period>& time)
+	{
+		auto secs = std::chrono::duration_cast<std::chrono::seconds>(time);
+		auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(time - secs);
+
+		timespec requested;
+		requested.tv_sec = secs.count();
+		requested.tv_nsec = nanos.count();
+
+		assert(requested.tv_nsec >= 0 && requested.tv_nsec <= 999999999);
+
+		timespec remaining;
+		remaining.tv_sec = 0;
+		remaining.tv_nsec = 0;
+
+		int result = ::nanosleep(&requested, &remaining);
+
+		if (result < 0)
+		{
+			result = errno;
+
+			if (result != -EINTR)
+			{
+				throw std::system_error(result, std::system_category(), "nanosleep");
+			}
+		}
+
+		return std::chrono::seconds(remaining.tv_sec) + std::chrono::nanoseconds(remaining.tv_sec);
+	}
 }

@@ -105,7 +105,7 @@ namespace sl
 
 			pwm.set_duty_percent(t % 100);
 
-			std::this_thread::sleep_for(std::chrono::seconds(1));
+			sl::nanosleep(std::chrono::seconds(1));
 		}
 
 		return 0;
@@ -122,12 +122,12 @@ namespace sl
 #endif
 			openlog("sykerolabs", LOG_CONS | LOG_PID | LOG_NDELAY, facility);
 
-			syslog(LOG_INFO, "Sykerolabs starting");
+			syslog(LOG_INFO, "starting...");
 		}
 
 		~syslog_facility()
 		{
-			syslog(LOG_INFO, "Sykerolabs stopped");
+			syslog(LOG_INFO, "stopped!");
 
 			closelog();
 		}
