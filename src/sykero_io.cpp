@@ -128,20 +128,4 @@ namespace sl
 			throw std::system_error(errno, std::system_category(), "lseek");
 		}
 	}
-
-	// TODO: finish this
-	void file_descriptor::poll(std::chrono::milliseconds timeout) const
-	{
-		pollfd poll_descriptor;
-		poll_descriptor.fd = _descriptor;
-		poll_descriptor.events = POLLPRI | POLLERR;
-		poll_descriptor.revents = 0;
-
-		int result = ::poll(&poll_descriptor, 1, timeout.count());
-
-		if (result < 0)
-		{
-			throw std::system_error(errno, std::system_category(), "poll");
-		}
-	}
 }

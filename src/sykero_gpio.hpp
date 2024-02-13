@@ -25,10 +25,16 @@ namespace sl
 
 		void read_values(std::span<gpio_lvp> data) const;
 		void read_value(gpio_lvp& lvp) const;
-		gpio_v2_line_event read_event() const;
+		void read_event(gpio_v2_line_event& event) const;
 
 		void write_values(std::span<gpio_lvp> data) const;
 		void write_value(const gpio_lvp& lvp) const;
+
+		template <typename Rep, typename Period>
+		bool poll(std::chrono::duration<Rep, Period> time)
+		{
+			return file_descriptor::poll(time, POLLIN | POLLPRI);
+		}
 
 	private:
 		size_t index_of(uint32_t offset) const;

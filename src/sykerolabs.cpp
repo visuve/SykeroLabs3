@@ -59,8 +59,8 @@ namespace sl
 		gpio_line_group output_lines =
 			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, output_pins);
 
-		//gpio_line_group monitor_lines =
-		//	chip.lines(GPIO_V2_LINE_FLAG_EDGE_RISING, monitor_pins);
+		gpio_line_group monitor_lines =
+			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING, monitor_pins);
 
 		// Confusingly enough, the Rasperry Pi PWM 0 is in pwmchip2
 		// Fans use 25kHz https://www.mouser.com/pdfDocs/San_Ace_EPWMControlFunction.pdf
@@ -86,8 +86,8 @@ namespace sl
 
 			for (auto& input : input_data)
 			{
-				std::cout << input.offset << '=' << input.value << '\n';
-			}			
+				std::cout << "GPIO(" << input.offset << ") = " << input.value << '\n';
+			}
 
 			std::array<gpio_lvp, 4> output_data =
 			{
@@ -98,6 +98,21 @@ namespace sl
 			};
 
 			output_lines.write_values(output_data);
+
+			// TODO: I need a thread to calculate the fan RPMs
+			if (monitor_lines.poll(std::chrono::milliseconds(1000)))
+			{
+				gpio_v2_line_event event = { 0 };
+				monitor_lines.read_event(event);
+
+				auto time = std::chrono::nanoseconds(event.timestamp_ns);
+
+				std::cout << "Timestamp = " << time << '\n';
+				std::cout << "ID = " << event.id << '\n';
+				std::cout << "Offset = " << event.offset << '\n';
+				std::cout << "Sequence number = " << event.seqno << '\n';
+				std::cout << "Line sequence number = " << event.line_seqno << '\n';
+			}
 
 			thermal_zone0.read_text(temperature);
 			thermal_zone0.lseek(0, SEEK_SET);

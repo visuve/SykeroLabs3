@@ -58,11 +58,10 @@ namespace sl
 	}
 
 	// https://github.com/torvalds/linux/blob/master/tools/gpio/gpio-event-mon.c
-	gpio_v2_line_event gpio_line_group::read_event() const
+	// https://github.com/torvalds/linux/blob/master/tools/gpio/gpio-watch.c
+	void gpio_line_group::read_event(gpio_v2_line_event& event) const
 	{
-		gpio_v2_line_event event = { 0 };
 		file_descriptor::read_value(event);
-		return event;
 	}
 
 	void gpio_line_group::write_values(std::span<gpio_lvp> data) const

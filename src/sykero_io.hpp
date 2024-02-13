@@ -49,7 +49,25 @@ namespace sl
 			return result;
 		}
 
-		void poll(std::chrono::milliseconds timeout) const;
+		template<typename Rep, typename Period>
+		bool poll(std::chrono::duration<Rep, Period> timeout, uint16_t events) const
+		{
+			pollfd poll_descriptor;
+			poll_descriptor.fd = _descriptor;
+			poll_descriptor.events = events;
+			poll_descriptor.revents = 0;
+
+			int ms = std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
+
+			int result = ::poll(&poll_descriptor, 1, ms);
+
+			if (result < 0)
+			{
+				throw std::system_error(errno, std::system_category(), "poll");
+			}
+
+			return result > 0;
+		}
 
 		int _descriptor = 0;
 	};
