@@ -3,8 +3,8 @@
 // Standard libraries
 #include <algorithm>
 #include <array>
-#include <bitset>
 #include <atomic>
+#include <bitset>
 #include <cassert>
 #include <chrono>
 #include <csignal>

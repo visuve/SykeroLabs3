@@ -25,13 +25,13 @@ namespace sl
 
 		void read_values(std::span<gpio_lvp> data) const;
 		void read_value(gpio_lvp& lvp) const;
-		void read_event(gpio_v2_line_event& event) const;
+		bool read_event(gpio_v2_line_event& event) const;
 
 		void write_values(std::span<gpio_lvp> data) const;
 		void write_value(const gpio_lvp& lvp) const;
 
 		template <typename Rep, typename Period>
-		bool poll(std::chrono::duration<Rep, Period> time)
+		bool poll(std::chrono::duration<Rep, Period> time) const
 		{
 			return file_descriptor::poll(time, POLLIN | POLLPRI);
 		}

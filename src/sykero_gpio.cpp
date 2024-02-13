@@ -57,11 +57,10 @@ namespace sl
 		lvp = data[0];
 	}
 
-	// https://github.com/torvalds/linux/blob/master/tools/gpio/gpio-event-mon.c
-	// https://github.com/torvalds/linux/blob/master/tools/gpio/gpio-watch.c
-	void gpio_line_group::read_event(gpio_v2_line_event& event) const
+
+	bool gpio_line_group::read_event(gpio_v2_line_event& event) const
 	{
-		file_descriptor::read_value(event);
+		return file_descriptor::read_value(event);
 	}
 
 	void gpio_line_group::write_values(std::span<gpio_lvp> data) const
@@ -100,8 +99,6 @@ namespace sl
 		return std::distance(_offsets.cbegin(), iter);
 	}
 
-	// https://github.com/torvalds/linux/blob/master/tools/gpio/lsgpio.c
-	// https://github.com/torvalds/linux/blob/master/tools/gpio/gpio-utils.c
 	gpio_chip::gpio_chip(const std::filesystem::path& path) :
 		file_descriptor(path)
 	{

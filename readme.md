@@ -6,7 +6,9 @@
 
 ## Parts 
 
-- https://www.waveshare.com/wiki/RPi_Relay_Board_(B)
+- [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)
+- [Waveshare RPi Relay Board (B)](https://www.waveshare.com/rpi-relay-board-b.htm)
+- [Noctua NF-A20 PWM](https://noctua.at/en/nf-a20-pwm)
 
 ## Pins
 
@@ -48,3 +50,14 @@
 
 - The application logs can be viewed with ``journalctl -f -t sykerolabs``.
 	- Assuming you use [Rasbpberry Pi OS](https://www.raspberrypi.com/software/) on the target...
+
+### References
+
+- I do not want to convolute the code with a lot of URLs/comments so here are some good quality links:
+	- https://github.com/torvalds/linux/blob/master/tools/gpio
+	- https://man7.org/linux/man-pages/index.html
+	- https://pubs.opengroup.org/onlinepubs/9699919799.2018edition/
+	- https://en.cppreference.com
+	- https://cmake.org/cmake/help/latest/index.html
+	- https://www.raspberrypi.com/documentation/
+

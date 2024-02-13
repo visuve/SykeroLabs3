@@ -29,6 +29,50 @@ namespace sl
 		signaled = signal;
 	}
 
+	constexpr size_t fan_count = 2;
+	std::atomic<int64_t> fan_rpms[fan_count] = { 0 };
+
+	void measure_fans(const gpio_line_group& monitor_lines)
+	{
+		int64_t revolutions[fan_count] = { 0 };
+		int64_t measure_start[fan_count] = { 0 };
+		gpio_v2_line_event event = {};
+
+		while (!signaled)
+		{
+			if (!monitor_lines.poll(std::chrono::milliseconds(1000)))
+			{
+				continue; // Meh, not ready
+			}
+
+			while (!signaled && monitor_lines.read_event(event))
+			{
+				size_t fan_index = event.offset - pins::FAN_1_TACHOMETER;
+
+				if (event.line_seqno % 10 == 1)
+				{
+					revolutions[fan_index] = 1;
+					measure_start[fan_index] = event.timestamp_ns;
+					continue;
+				}
+				
+				if (event.line_seqno % 10 == 0)
+				{
+					double time_taken_ns = event.timestamp_ns - measure_start[fan_index];
+					double revolutions_per_nanoseconds = ++revolutions[fan_index] / time_taken_ns;
+
+					constexpr auto nanos_per_minute = 
+						std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::minutes(1));
+
+					fan_rpms[fan_index] = nanos_per_minute.count() * revolutions_per_nanoseconds;
+					continue;
+				}
+				
+				++revolutions[fan_index];
+			}
+		}
+	}
+
 	int run()
 	{
 		const std::set<uint32_t> input_pins =
@@ -64,6 +108,7 @@ namespace sl
 
 		// Confusingly enough, the Rasperry Pi PWM 0 is in pwmchip2
 		// Fans use 25kHz https://www.mouser.com/pdfDocs/San_Ace_EPWMControlFunction.pdf
+		// https://noctua.at/pub/media/wysiwyg/Noctua_PWM_specifications_white_paper.pdf
 		pwm_chip pwm("/sys/class/pwm/pwmchip2", 0, 25000);
 
 		uint64_t t = 0;
@@ -71,6 +116,8 @@ namespace sl
 		file_descriptor thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
 
 		std::string temperature(5, 0);
+
+		std::jthread thread(measure_fans, monitor_lines);
 
 		while (!signaled)
 		{
@@ -86,7 +133,7 @@ namespace sl
 
 			for (auto& input : input_data)
 			{
-				std::cout << "GPIO(" << input.offset << ") = " << input.value << '\n';
+				std::cout << "GPIO " << input.offset << " = " << input.value << '\n';
 			}
 
 			std::array<gpio_lvp, 4> output_data =
@@ -98,26 +145,16 @@ namespace sl
 			};
 
 			output_lines.write_values(output_data);
-
-			// TODO: I need a thread to calculate the fan RPMs
-			if (monitor_lines.poll(std::chrono::milliseconds(1000)))
+			
+			for (size_t i = 0; i < fan_count; ++i)
 			{
-				gpio_v2_line_event event = { 0 };
-				monitor_lines.read_event(event);
-
-				auto time = std::chrono::nanoseconds(event.timestamp_ns);
-
-				std::cout << "Timestamp = " << time << '\n';
-				std::cout << "ID = " << event.id << '\n';
-				std::cout << "Offset = " << event.offset << '\n';
-				std::cout << "Sequence number = " << event.seqno << '\n';
-				std::cout << "Line sequence number = " << event.line_seqno << '\n';
+				std::cout << "Fan " << i + 1 << " = " << fan_rpms[i] << " RPM\n";
 			}
 
 			thermal_zone0.read_text(temperature);
 			thermal_zone0.lseek(0, SEEK_SET);
 
-			std::cout << "CPU @ " << std::stof(temperature) / 1000.0f << "c\n";
+			std::cout << "CPU = " << std::stof(temperature) / 1000.0f << "c\n";
 
 			pwm.set_duty_percent(t % 100);
 
