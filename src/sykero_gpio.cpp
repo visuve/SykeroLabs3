@@ -57,7 +57,6 @@ namespace sl
 		lvp = data[0];
 	}
 
-
 	bool gpio_line_group::read_event(gpio_v2_line_event& event) const
 	{
 		return file_descriptor::read_value(event);
@@ -110,10 +109,29 @@ namespace sl
 		syslog(LOG_INFO, "gpio_chip %d closed.", _descriptor);
 	}
 
-	gpio_line_group gpio_chip::line_group(uint64_t flags, const std::set<uint32_t>& offsets) const
+	gpio_line_group gpio_chip::line_group(
+		uint64_t flags,
+		const std::set<uint32_t>& offsets,
+		std::chrono::microseconds debounce) const
 	{
 		gpio_v2_line_config config = { 0 };
 		config.flags = flags;
+
+		std::bitset<64> mask;
+
+		if (debounce > std::chrono::microseconds(0))
+		{
+			config.num_attrs = 1;
+
+			for (size_t i = 0; i < offsets.size(); ++i)
+			{
+				mask.set(i, true);
+			}
+
+			config.attrs[0].mask = mask.to_ullong();
+			config.attrs[0].attr.id = GPIO_V2_LINE_ATTR_ID_DEBOUNCE;
+			config.attrs[0].attr.debounce_period_us = debounce.count();
+		}
 
 		gpio_v2_line_request request = { 0 };
 		request.config = config;

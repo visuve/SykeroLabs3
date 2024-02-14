@@ -48,7 +48,10 @@ namespace sl
 		gpio_chip(const std::filesystem::path& path);
 		~gpio_chip();
 
-		gpio_line_group line_group(uint64_t flags, const std::set<uint32_t>& offsets) const;
+		gpio_line_group line_group(
+			uint64_t flags,
+			const std::set<uint32_t>& offsets,
+			std::chrono::microseconds debounce = std::chrono::microseconds(0)) const;
 	};
 
 }
