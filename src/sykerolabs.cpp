@@ -75,6 +75,24 @@ namespace sl
 		}
 	}
 
+	std::filesystem::path find_temperature_sensor_path()
+	{
+		const std::regex regex("^28-[0-9a-f]{12}$");
+
+		for (const auto& entry : std::filesystem::directory_iterator("/sys/bus/w1/devices/", std::filesystem::directory_options::follow_directory_symlink))
+		{
+			const std::filesystem::path path = entry.path();
+			const std::string filename = path.filename().string();
+
+			if (std::regex_search(filename, regex))
+			{
+				return path / "temperature";
+			}
+		}
+
+		throw std::runtime_error("Temperature sensor not found");
+	}
+
 	void measure_temperature(const file_descriptor& thermal_zone0, const file_descriptor& ds18b20)
 	{
 		std::string buffer(5, 0);
@@ -144,7 +162,7 @@ namespace sl
 		pwm_chip pwm("/sys/class/pwm/pwmchip2", 0, 25000);
 
 		file_descriptor thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
-		file_descriptor ds18b20("/sys/bus/w1/devices/28-485eb00164ff/temperature"); // TODO: remove hard coded guess
+		file_descriptor ds18b20(find_temperature_sensor_path());
 
 		uint64_t t = 0;
 
