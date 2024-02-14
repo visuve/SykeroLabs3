@@ -68,21 +68,19 @@ namespace sl
 	{
 		int result = ::read(_descriptor, data, size);
 
+		if (result == 0)
+		{
+			return false;
+		}
+
 		if (result < 0)
 		{
-			result = errno;
-
-			if (result == EAGAIN)
-			{
-				return false; // No data
-			}
-
-			throw std::system_error(result, std::system_category(), "read");
+			throw std::system_error(errno, std::system_category(), "read");
 		}
 
 		if (result != size)
 		{
-			throw std::system_error(-EIO, std::system_category(), "read");
+			throw std::system_error(EIO, std::system_category(), "read");
 		}
 
 		return true;

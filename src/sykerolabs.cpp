@@ -34,6 +34,29 @@ namespace sl
 	std::atomic<float> cpu_celcius = 0;
 	std::atomic<float> environment_celcius = 0;
 
+	template<typename Function, typename... Args>
+	int exception_handler(Function&& function, Args&&... args)
+	{
+		try
+		{
+			function(args...);
+		}
+		catch (const std::system_error& e)
+		{
+			syslog(LOG_CRIT, "std::system_error: %s", e.what());
+			
+			return e.code().value();
+		}
+		catch (const std::exception& e)
+		{
+			syslog(LOG_CRIT, "std::exception: %s", e.what());
+
+			return -1;
+		}
+
+		return 0;
+	}
+
 	void measure_fans(const gpio_line_group& monitor_lines)
 	{
 		int64_t revolutions[fan_count] = { 0 };
@@ -113,7 +136,6 @@ namespace sl
 
 			auto after = std::chrono::steady_clock::now();
 			auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(after - before);
-
 			auto delay = diff - std::chrono::milliseconds(1000);
 
 			if (delay > std::chrono::milliseconds(0))
@@ -123,7 +145,7 @@ namespace sl
 		}
 	}
 
-	int run()
+	void run()
 	{
 		const std::set<uint32_t> input_pins =
 		{
@@ -166,8 +188,15 @@ namespace sl
 
 		uint64_t t = 0;
 
-		std::jthread fan_measurement_thread(measure_fans, monitor_lines);
-		std::jthread temperature_measurement_thread(measure_temperature, thermal_zone0, ds18b20);
+		std::jthread fan_measurement_thread([&]()
+		{
+			exception_handler(measure_fans, monitor_lines);
+		});
+
+		std::jthread temperature_measurement_thread([&]()
+		{
+			exception_handler(measure_temperature, thermal_zone0, ds18b20);
+		});
 
 		while (!signaled)
 		{
@@ -208,8 +237,6 @@ namespace sl
 
 			sl::nanosleep(std::chrono::milliseconds(1000));
 		}
-
-		return 0;
 	}
 
 	struct syslog_facility
@@ -241,18 +268,5 @@ int main()
 
 	std::signal(SIGINT, sl::signal_handler);
 
-	try
-	{
-		return sl::run();
-	}
-	catch (const std::system_error& e)
-	{
-		syslog(LOG_CRIT, "std::system_error: %s", e.what());
-	}
-	catch (const std::exception& e)
-	{
-		syslog(LOG_CRIT, "std::exception: %s", e.what());
-	}
-
-	return -1;
+	return sl::exception_handler(sl::run);
 }
