@@ -21,79 +21,58 @@ namespace sl
 		};
 	};
 
-	volatile std::sig_atomic_t signaled;
-
-	void signal_handler(int signal)
-	{
-		syslog(LOG_NOTICE, "Signaled: %d", signal);
-		signaled = signal;
-	}
-
+	std::atomic<int> signaled = 0;
 	constexpr size_t fan_count = 2;
-	std::atomic<int64_t> fan_rpms[fan_count] = { 0 };
+	std::array<std::atomic<uint16_t>, fan_count> fan_rpms = { 0 };
 	std::atomic<float> cpu_celcius = 0;
 	std::atomic<float> environment_celcius = 0;
 
-	template<typename Function, typename... Args>
-	int exception_handler(Function&& function, Args&&... args)
-	{
-		try
-		{
-			function(args...);
-		}
-		catch (const std::system_error& e)
-		{
-			syslog(LOG_CRIT, "std::system_error: %s", e.what());
-			
-			return e.code().value();
-		}
-		catch (const std::exception& e)
-		{
-			syslog(LOG_CRIT, "std::exception: %s", e.what());
-
-			return -1;
-		}
-
-		return 0;
-	}
-
 	void measure_fans(const gpio_line_group& monitor_lines)
 	{
-		int64_t revolutions[fan_count] = { 0 };
-		int64_t measure_start[fan_count] = { 0 };
-		gpio_v2_line_event event = {};
+		std::array<float, fan_count> revolutions = { 0 };
+		std::array<float, fan_count> measure_start = { 0 };
+		gpio_v2_line_event event = { 0 };
 
 		while (!signaled)
 		{
-			if (!monitor_lines.poll(std::chrono::milliseconds(1000)))
+			while (monitor_lines.poll(std::chrono::milliseconds(100)) && monitor_lines.read_event(event))
 			{
-				continue; // Meh, not ready
-			}
+				assert(event.id == GPIO_V2_LINE_EVENT_RISING_EDGE);
 
-			while (!signaled && monitor_lines.read_event(event))
-			{
 				size_t fan_index = event.offset - pins::FAN_1_TACHOMETER;
+
+				assert(fan_index < fan_count);
 
 				if (event.line_seqno % 10 == 1)
 				{
-					revolutions[fan_index] = 1;
+					revolutions[fan_index] = 1.0f;
 					measure_start[fan_index] = event.timestamp_ns;
 					continue;
 				}
-				
+
 				if (event.line_seqno % 10 == 0)
 				{
-					double time_taken_ns = event.timestamp_ns - measure_start[fan_index];
-					double revolutions_per_nanoseconds = ++revolutions[fan_index] / time_taken_ns;
+					float time_taken_ns = float(event.timestamp_ns) - measure_start[fan_index];
+					float revolutions_per_nanoseconds = revolutions[fan_index] / time_taken_ns;
 
-					constexpr auto nanos_per_minute = 
-						std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::minutes(1));
+					constexpr float nanos_per_minute =
+						std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::minutes(1)).count();
 
-					fan_rpms[fan_index] = nanos_per_minute.count() * revolutions_per_nanoseconds;
+					float rpm = nanos_per_minute * revolutions_per_nanoseconds;
+
+					assert(rpm >= 0 && rpm < 0xFFFF);
+
+					fan_rpms[fan_index] = static_cast<uint16_t>(rpm);
+
 					continue;
 				}
-				
+
 				++revolutions[fan_index];
+			}
+
+			for (auto& fan_rpm : fan_rpms)
+			{
+				fan_rpm = 0;
 			}
 		}
 	}
@@ -102,7 +81,7 @@ namespace sl
 	{
 		const std::regex regex("^28-[0-9a-f]{12}$");
 
-		for (const auto& entry : std::filesystem::directory_iterator("/sys/bus/w1/devices/", std::filesystem::directory_options::follow_directory_symlink))
+		for (const auto& entry : std::filesystem::directory_iterator("/sys/bus/w1/devices/"))
 		{
 			const std::filesystem::path path = entry.path();
 			const std::string filename = path.filename().string();
@@ -145,6 +124,35 @@ namespace sl
 		}
 	}
 
+	void signal_handler(int signal)
+	{
+		syslog(LOG_NOTICE, "Signaled: %d", signal);
+		signaled = signal;
+	}
+
+	template<typename Function, typename... Args>
+	int exception_handler(Function&& function, Args&&... args)
+	{
+		try
+		{
+			function(args...);
+		}
+		catch (const std::system_error& e)
+		{
+			syslog(LOG_CRIT, "std::system_error: %s", e.what());
+
+			return e.code().value();
+		}
+		catch (const std::exception& e)
+		{
+			syslog(LOG_CRIT, "std::exception: %s", e.what());
+
+			return -1;
+		}
+
+		return 0;
+	}
+
 	void run()
 	{
 		const std::set<uint32_t> input_pins =
@@ -175,8 +183,11 @@ namespace sl
 		gpio_line_group output_lines =
 			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, output_pins);
 
+		// I do not have an oscilloscope so this value is arbitrary
+		constexpr auto fan_tacho_debounce = std::chrono::microseconds(100);
+
 		gpio_line_group monitor_lines =
-			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING, monitor_pins);
+			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING, monitor_pins, fan_tacho_debounce);
 
 		// Confusingly enough, the Rasperry Pi PWM 0 is in pwmchip2
 		// Fans use 25kHz https://www.mouser.com/pdfDocs/San_Ace_EPWMControlFunction.pdf
@@ -224,8 +235,8 @@ namespace sl
 			};
 
 			output_lines.write_values(output_data);
-			
-			for (size_t i = 0; i < fan_count; ++i)
+
+			for (size_t i = 0; i < fan_rpms.size(); ++i)
 			{
 				std::cout << "Fan " << i + 1 << " = " << fan_rpms[i] << " RPM\n";
 			}
