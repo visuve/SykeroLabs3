@@ -5,21 +5,23 @@
 
 namespace sl
 {
-	struct pins
+	// See https://github.com/visuve/SykeroLabs3/wiki for more details
+	namespace pins
 	{
 		enum : uint8_t
 		{
-			RESERVOIR_PUMP_1 = 5,
-			RESERVOIR_PUMP_2 = 6,
-			NFT_PUMP_1 = 13,
-			NFT_PUMP_2 = 16,
-			FAN_PWM_SIGNAL = 12,
+			ENVIRONMENT_TEMPERATURE = 4,
+			RAINWATER_RESERVOIR_VALVE_1 = 5,
+			RAINWATER_RESERVOIR_VALVE_2 = 6,
+			IRRIGATION_PUMP_1 = 13,
+			IRRIGATION_PUMP_2 = 16,
+			FAN_SPEED_SIGNAL = 12, // I use one for both
 			FAN_1_RELAY = 19,
 			FAN_2_RELAY = 20,
 			FAN_1_TACHOMETER = 23,
 			FAN_2_TACHOMETER = 24
 		};
-	};
+	}
 
 	std::atomic<int> signaled = 0;
 	constexpr size_t fan_count = 2;
@@ -55,8 +57,8 @@ namespace sl
 					float time_taken_ns = float(event.timestamp_ns) - measure_start[fan_index];
 					float revolutions_per_nanoseconds = revolutions[fan_index] / time_taken_ns;
 
-					constexpr float nanos_per_minute =
-						std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::minutes(1)).count();
+					constexpr auto nanos_per_minute = static_cast<float>(
+						std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::minutes(1)).count());
 
 					float rpm = nanos_per_minute * revolutions_per_nanoseconds;
 
@@ -157,14 +159,14 @@ namespace sl
 	{
 		const std::set<uint32_t> input_pins =
 		{
-			pins::RESERVOIR_PUMP_1,
-			pins::RESERVOIR_PUMP_2
+			pins::RAINWATER_RESERVOIR_VALVE_1,
+			pins::RAINWATER_RESERVOIR_VALVE_2
 		};
 
 		const std::set<uint32_t> output_pins =
 		{
-			pins::NFT_PUMP_1,
-			pins::NFT_PUMP_2,
+			pins::IRRIGATION_PUMP_1,
+			pins::IRRIGATION_PUMP_2,
 			pins::FAN_1_RELAY,
 			pins::FAN_2_RELAY
 		};
@@ -215,8 +217,8 @@ namespace sl
 
 			std::array<gpio_lvp, 2> input_data =
 			{
-				gpio_lvp(pins::RESERVOIR_PUMP_1),
-				gpio_lvp(pins::RESERVOIR_PUMP_2)
+				gpio_lvp(pins::RAINWATER_RESERVOIR_VALVE_1),
+				gpio_lvp(pins::RAINWATER_RESERVOIR_VALVE_2)
 			};
 
 			input_lines.read_values(input_data);
@@ -228,8 +230,8 @@ namespace sl
 
 			std::array<gpio_lvp, 4> output_data =
 			{
-				gpio_lvp(pins::NFT_PUMP_1, t % 4 == 0),
-				gpio_lvp(pins::NFT_PUMP_2, t % 4 == 1),
+				gpio_lvp(pins::IRRIGATION_PUMP_1, t % 4 == 0),
+				gpio_lvp(pins::IRRIGATION_PUMP_2, t % 4 == 1),
 				gpio_lvp(pins::FAN_1_RELAY, t % 4 == 2),
 				gpio_lvp(pins::FAN_2_RELAY, t % 4 == 3)
 			};
