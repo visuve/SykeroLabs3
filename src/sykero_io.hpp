@@ -32,7 +32,7 @@ namespace sl
 		}
 
 		void fsync() const;
-
+		size_t file_size() const;
 		void lseek(off_t offset, int whence) const;
 
 	protected:

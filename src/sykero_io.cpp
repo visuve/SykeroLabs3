@@ -119,6 +119,18 @@ namespace sl
 		}
 	}
 
+	size_t file_descriptor::file_size() const
+	{
+		struct stat buffer = { 0 };
+
+		if (::fstat(_descriptor, &buffer) < 0)
+		{
+			throw std::system_error(errno, std::system_category(), "fstat");
+		}
+
+		return buffer.st_size;
+	}
+
 	void file_descriptor::lseek(off_t offset, int whence) const
 	{
 		if (::lseek(_descriptor, offset, whence) < 0)
