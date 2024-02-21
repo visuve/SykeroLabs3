@@ -6,15 +6,24 @@ namespace sl
 {
 	struct gpio_lvp // line value pair
 	{
-		// Clang needs this, otherwise pretty redundant
 		constexpr inline gpio_lvp(uint32_t offset, bool value = true) :
 			offset(offset),
 			value(value)
 		{
 		}
 
-		uint32_t offset = 0;
-		bool value = true;
+		constexpr auto operator <=> (const gpio_lvp& other) const
+		{
+			return offset <=> other.offset;
+		}
+
+		constexpr bool operator == (const gpio_lvp& other) const
+		{
+			return offset == other.offset;
+		}
+
+		const uint32_t offset;
+		bool value;
 	};
 
 	class gpio_line_group : private file_descriptor

@@ -52,9 +52,9 @@ namespace sl
 
 	void gpio_line_group::read_value(gpio_lvp& lvp) const
 	{
-		gpio_lvp data[] = { lvp };
+		gpio_lvp data[1] = { lvp };
 		read_values(data);
-		lvp = data[0];
+		lvp.value = data[0].value;
 	}
 
 	bool gpio_line_group::read_event(gpio_v2_line_event& event) const
