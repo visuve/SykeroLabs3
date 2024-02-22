@@ -1,4 +1,4 @@
-name: Ubuntu G++
+name: Ubuntu GCC
 
 on: [push, pull_request]
 
@@ -6,8 +6,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Install G++
+    - uses: actions/checkout@v4
+    - name: Install GCC
       run: |
         sudo apt update
         sudo apt install g++ cmake

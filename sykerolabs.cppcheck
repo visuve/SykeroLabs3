@@ -15,6 +15,5 @@
     </libraries>
     <suppressions>
         <suppression>noExplicitConstructor</suppression>
-        <suppression>unusedFunction</suppression>
     </suppressions>
 </project>
