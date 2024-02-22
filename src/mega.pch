@@ -10,11 +10,11 @@
 #include <csignal>
 #include <cstdint>
 #include <filesystem>
+#include <iostream>
 #include <regex>
 #include <set>
 #include <span>
 #include <thread>
-#include <iostream>
 
 // Linux or POSIX specific
 #include <fcntl.h>

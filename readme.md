@@ -8,10 +8,10 @@
 
 ## Building
 
-- You can use GCC or Clang
+- You can use GCC or Clang on your Raspberry Pi
 	- See [gcc.yml](https://github.com/visuve/SykeroLabs3/blob/master/.github/workflows/clang.yml) and [clang.yml](https://github.com/visuve/SykeroLabs3/blob/master/.github/workflows/gcc.yml) how to build
 - At the moment Sykerolabs uses no other than C++ standard libraries, i.e. there are no dependencies
-- I use Visual Studio with the "Linux and embedded development with C++" work load
+- I use Visual Studio with the *"Linux and embedded development with C++"* workload
 	- Sometimes I use [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/en-us/windows/wsl/about) when developing stuff that does not need [GPIO](https://en.wikipedia.org/wiki/General-purpose_input/output) related things
 
 ## Debugging

@@ -12,8 +12,8 @@ namespace sl
 		enum : uint8_t
 		{
 			ENVIRONMENT_TEMPERATURE = 4,
-			RAINWATER_RESERVOIR_VALVE_1 = 5,
-			RAINWATER_RESERVOIR_VALVE_2 = 6,
+			WATER_LEVEL_SENSOR_1 = 5,
+			WATER_LEVEL_SENSOR_2 = 6,
 			IRRIGATION_PUMP_1 = 13,
 			IRRIGATION_PUMP_2 = 16,
 			FAN_SPEED_SIGNAL = 12, // I use one for both
@@ -25,12 +25,17 @@ namespace sl
 	}
 
 	std::atomic<int> signaled = 0;
+
+	constexpr size_t water_level_sensor_count = 2;
+	std::array<std::atomic<bool>, water_level_sensor_count> water_level_sensor_states = { false, false };
+
 	constexpr size_t fan_count = 2;
 	std::array<std::atomic<uint16_t>, fan_count> fan_rpms = { 0, 0 };
+
 	std::atomic<float> cpu_celcius = 0;
 	std::atomic<float> environment_celcius = 0;
 
-	void measure_fans(const gpio_line_group& monitor_lines)
+	void measure_fans(const gpio_line_group& fans)
 	{
 		std::array<float, fan_count> revolutions = { 0, 0 };
 		std::array<float, fan_count> measure_start = { 0, 0 };
@@ -39,7 +44,7 @@ namespace sl
 
 		while (!signaled)
 		{
-			while (monitor_lines.poll(std::chrono::milliseconds(100)) && monitor_lines.read_event(event))
+			while (fans.poll(std::chrono::milliseconds(100)) && fans.read_event(event))
 			{
 				assert(event.id == GPIO_V2_LINE_EVENT_RISING_EDGE);
 
@@ -75,6 +80,33 @@ namespace sl
 			}
 
 			std::fill(fan_rpms.begin(), fan_rpms.end(), 0);
+		}
+	}
+
+	void monitor_water_level_sensors(const gpio_line_group& water_level_sensors)
+	{
+		gpio_v2_line_event event;
+		clear(event);
+
+		while (!signaled)
+		{
+			while (water_level_sensors.poll(std::chrono::milliseconds(100)) && water_level_sensors.read_event(event))
+			{
+				assert(event.id == GPIO_V2_LINE_EVENT_RISING_EDGE || event.id == GPIO_V2_LINE_EVENT_FALLING_EDGE);
+
+				size_t sensor_index = event.offset - pins::WATER_LEVEL_SENSOR_1;
+
+				assert(sensor_index < water_level_sensor_count);
+
+				auto& water_level_sensor_state = water_level_sensor_states[sensor_index];
+
+				water_level_sensor_state = event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? false : true;
+
+				syslog(LOG_NOTICE,
+					"Water level sensor %zu changed to %s",
+					++sensor_index,
+					event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? "high" : "low");
+			}
 		}
 	}
 
@@ -156,10 +188,10 @@ namespace sl
 
 	void run()
 	{
-		const std::set<uint32_t> input_pins =
+		const std::set<uint32_t> water_level_sensor_pins =
 		{
-			pins::RAINWATER_RESERVOIR_VALVE_1,
-			pins::RAINWATER_RESERVOIR_VALVE_2
+			pins::WATER_LEVEL_SENSOR_1,
+			pins::WATER_LEVEL_SENSOR_2
 		};
 
 		const std::set<uint32_t> output_pins =
@@ -170,7 +202,7 @@ namespace sl
 			pins::FAN_2_RELAY
 		};
 
-		const std::set<uint32_t> monitor_pins =
+		const std::set<uint32_t> fan_tachometer_pins =
 		{
 			pins::FAN_1_TACHOMETER,
 			pins::FAN_2_TACHOMETER
@@ -178,31 +210,41 @@ namespace sl
 
 		gpio_chip chip("/dev/gpiochip4");
 
-		gpio_line_group input_lines =
-			chip.line_group(GPIO_V2_LINE_FLAG_INPUT, input_pins);
+		// I do not have an oscilloscope so these values are arbitrary
+		constexpr auto water_level_sensor_debounce = std::chrono::milliseconds(10);
+		constexpr auto fan_tacho_debounce = std::chrono::microseconds(100);
 
 		gpio_line_group output_lines =
 			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, output_pins);
 
-		// I do not have an oscilloscope so this value is arbitrary
-		constexpr auto fan_tacho_debounce = std::chrono::microseconds(100);
+		gpio_line_group water_level_sensors =
+			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EDGE_FALLING,
+				water_level_sensor_pins,
+				water_level_sensor_debounce);
 
-		gpio_line_group monitor_lines =
-			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING, monitor_pins, fan_tacho_debounce);
+		gpio_line_group fans =
+			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING,
+				fan_tachometer_pins,
+				fan_tacho_debounce);
 
 		// Confusingly enough, the Rasperry Pi PWM 0 is in pwmchip2
 		// Fans use 25kHz https://www.mouser.com/pdfDocs/San_Ace_EPWMControlFunction.pdf
 		// https://noctua.at/pub/media/wysiwyg/Noctua_PWM_specifications_white_paper.pdf
-		pwm_chip pwm("/sys/class/pwm/pwmchip2", 0, 25000);
+		pwm_chip fan_pwm("/sys/class/pwm/pwmchip2", 0, 25000);
 
 		file_descriptor thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
 		file_descriptor ds18b20(find_temperature_sensor_path());
 
 		uint64_t t = 0;
 
+		std::jthread water_level_monitoring_thread([&]()
+		{
+			exception_handler(monitor_water_level_sensors, water_level_sensors);
+		});
+
 		std::jthread fan_measurement_thread([&]()
 		{
-			exception_handler(measure_fans, monitor_lines);
+			exception_handler(measure_fans, fans);
 		});
 
 		std::jthread temperature_measurement_thread([&]()
@@ -214,19 +256,6 @@ namespace sl
 		{
 			std::cout << "\nT=" << ++t << ": \n";
 
-			std::array<gpio_lvp, 2> input_data =
-			{
-				gpio_lvp(pins::RAINWATER_RESERVOIR_VALVE_1),
-				gpio_lvp(pins::RAINWATER_RESERVOIR_VALVE_2)
-			};
-
-			input_lines.read_values(input_data);
-
-			for (auto& input : input_data)
-			{
-				std::cout << "GPIO " << input.offset << " = " << input.value << '\n';
-			}
-
 			std::array<gpio_lvp, 4> output_data =
 			{
 				gpio_lvp(pins::IRRIGATION_PUMP_1, t % 4 == 0),
@@ -237,6 +266,11 @@ namespace sl
 
 			output_lines.write_values(output_data);
 
+			for (size_t i = 0; i < water_level_sensor_states.size(); ++i)
+			{
+				std::cout << "Water level sensor " << i + 1 << " = " << (water_level_sensor_states[i] ? "Low" : "High") << '\n';
+			}
+
 			for (size_t i = 0; i < fan_rpms.size(); ++i)
 			{
 				std::cout << "Fan " << i + 1 << " = " << fan_rpms[i] << " RPM\n";
@@ -245,7 +279,7 @@ namespace sl
 			std::cout << "CPU = " << cpu_celcius << "c\n";
 			std::cout << "Environment = " << environment_celcius << "c\n";
 
-			pwm.set_duty_percent(t % 100);
+			fan_pwm.set_duty_percent(t % 100);
 
 			sl::nanosleep(std::chrono::milliseconds(1000));
 		}
