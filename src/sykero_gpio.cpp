@@ -1,19 +1,9 @@
 #include "mega.pch"
+#include "sykero_mem.hpp"
 #include "sykero_gpio.hpp"
 
 namespace sl
 {
-	template <typename T, size_t TS, size_t SS>
-	constexpr void clone(T(&target)[TS], const T(&source)[SS])
-	{
-		static_assert(TS >= SS, "Target size is smaller than destination!");
-
-		for (size_t i = 0; i < SS; ++i)
-		{
-			target[i] = source[i];
-		}
-	}
-
 	gpio_line_group::gpio_line_group(int descriptor, const std::set<uint32_t>& offsets) :
 		file_descriptor(descriptor),
 		_offsets(offsets)
@@ -114,7 +104,8 @@ namespace sl
 		const std::set<uint32_t>& offsets,
 		std::chrono::microseconds debounce) const
 	{
-		gpio_v2_line_config config = { 0 };
+		gpio_v2_line_config config;
+		clear(config);
 		config.flags = flags;
 
 		std::bitset<64> mask;
@@ -133,19 +124,13 @@ namespace sl
 			config.attrs[0].attr.debounce_period_us = debounce.count();
 		}
 
-		gpio_v2_line_request request = { 0 };
+		gpio_v2_line_request request;
+		clear(request);
 		request.config = config;
 		request.num_lines = offsets.size();
 
-		size_t i = 0;
-
-		for (uint32_t offset : offsets)
-		{
-			request.offsets[i] = offset;
-			++i;
-		}
-
-		clone(request.consumer, "sykerolabs");
+		clone(offsets, request.offsets);
+		clone("sykerolabs", request.consumer);
 
 		file_descriptor::ioctl(GPIO_V2_GET_LINE_IOCTL, &request);
 

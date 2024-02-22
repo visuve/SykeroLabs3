@@ -1,4 +1,5 @@
 #include "mega.pch"
+#include "sykero_mem.hpp"
 #include "sykero_io.hpp"
 
 namespace sl
@@ -78,7 +79,7 @@ namespace sl
 			throw std::system_error(errno, std::system_category(), "read");
 		}
 
-		if (result != size)
+		if (static_cast<size_t>(result) != size)
 		{
 			throw std::system_error(EIO, std::system_category(), "read");
 		}
@@ -100,7 +101,7 @@ namespace sl
 			throw std::system_error(errno, std::system_category(), "write");
 		}
 
-		if (result != size)
+		if (static_cast<size_t>(result) != size)
 		{
 			throw std::system_error(-EIO, std::system_category(), "write");
 		}
@@ -121,7 +122,8 @@ namespace sl
 
 	size_t file_descriptor::file_size() const
 	{
-		struct stat buffer = { 0 };
+		struct stat buffer;
+		clear(buffer);
 
 		if (::fstat(_descriptor, &buffer) < 0)
 		{

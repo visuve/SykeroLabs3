@@ -1,4 +1,5 @@
 #include "mega.pch"
+#include "sykero_mem.hpp"
 #include "sykero_io.hpp"
 #include "sykero_gpio.hpp"
 #include "sykero_pwm.hpp"
@@ -25,15 +26,16 @@ namespace sl
 
 	std::atomic<int> signaled = 0;
 	constexpr size_t fan_count = 2;
-	std::array<std::atomic<uint16_t>, fan_count> fan_rpms = { 0 };
+	std::array<std::atomic<uint16_t>, fan_count> fan_rpms = { 0, 0 };
 	std::atomic<float> cpu_celcius = 0;
 	std::atomic<float> environment_celcius = 0;
 
 	void measure_fans(const gpio_line_group& monitor_lines)
 	{
-		std::array<float, fan_count> revolutions = { 0 };
-		std::array<float, fan_count> measure_start = { 0 };
-		gpio_v2_line_event event = { 0 };
+		std::array<float, fan_count> revolutions = { 0, 0 };
+		std::array<float, fan_count> measure_start = { 0, 0 };
+		gpio_v2_line_event event;
+		clear(event);
 
 		while (!signaled)
 		{
