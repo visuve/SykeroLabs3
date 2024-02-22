@@ -1,8 +1,9 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.22)
 
-project(SykeroLabs C CXX)
+project(SykeroLabs CXX)
 
-set(CMAKE_C_STANDARD 20)
 set(CMAKE_CXX_STANDARD 20)
+
+add_compile_options(-Wall -Wextra -pedantic -Werror)
 
 add_subdirectory(src)
