@@ -1,0 +1,20 @@
+name: Ubuntu G++
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install G++
+      run: |
+        sudo apt update
+        sudo apt install g++ cmake
+
+    - name: Build
+      run: |
+        mkdir out
+        cd out
+        cmake -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ ..
+        make

@@ -1,0 +1,20 @@
+name: Ubuntu Clang
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install Clang
+      run: |
+        sudo apt update
+        sudo apt --yes install clang cmake
+
+    - name: Build
+      run: |
+        mkdir out
+        cd out
+        cmake -DCMAKE_C_COMPILER=/usr/bin/clang -DCMAKE_CXX_COMPILER=/usr/bin/clang++ ..
+        make
