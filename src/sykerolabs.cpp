@@ -74,10 +74,7 @@ namespace sl
 				++revolutions[fan_index];
 			}
 
-			for (auto& fan_rpm : fan_rpms)
-			{
-				fan_rpm = 0;
-			}
+			std::fill(fan_rpms.begin(), fan_rpms.end(), 0);
 		}
 	}
 
