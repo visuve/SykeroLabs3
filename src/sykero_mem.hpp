@@ -1,6 +1,6 @@
 #pragma once
 
-namespace sl
+namespace sl::mem
 {
 	template <typename T, size_t FS, size_t TS>
 	constexpr void clone(const T(&from)[FS], T(&to)[TS])

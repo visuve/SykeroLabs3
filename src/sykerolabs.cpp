@@ -37,16 +37,16 @@ namespace sl
 
 	void measure_fans(const gpio_line_group& fans)
 	{
-		clear(fan_rpms);
+		mem::clear(fan_rpms);
 
 		std::array<float, fan_count> revolutions;
-		clear(revolutions);
+		mem::clear(revolutions);
 
 		std::array<float, fan_count> measure_start;
-		clear(measure_start);
+		mem::clear(measure_start);
 
 		gpio_v2_line_event event;
-		clear(event);
+		mem::clear(event);
 
 		while (!signaled)
 		{
@@ -85,16 +85,16 @@ namespace sl
 				++revolutions[fan_index];
 			}
 
-			clear(fan_rpms);
+			mem::clear(fan_rpms);
 		}
 	}
 
 	void monitor_water_level_sensors(const gpio_line_group& water_level_sensors)
 	{
-		clear(water_level_sensor_states);
+		mem::clear(water_level_sensor_states);
 
 		gpio_v2_line_event event;
-		clear(event);
+		mem::clear(event);
 
 		while (!signaled)
 		{

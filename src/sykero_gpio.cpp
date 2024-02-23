@@ -105,7 +105,7 @@ namespace sl
 		std::chrono::microseconds debounce) const
 	{
 		gpio_v2_line_config config;
-		clear(config);
+		mem::clear(config);
 		config.flags = flags;
 
 		std::bitset<64> mask;
@@ -125,12 +125,12 @@ namespace sl
 		}
 
 		gpio_v2_line_request request;
-		clear(request);
+		mem::clear(request);
 		request.config = config;
 		request.num_lines = offsets.size();
 
-		clone(offsets, request.offsets);
-		clone("sykerolabs", request.consumer);
+		mem::clone(offsets, request.offsets);
+		mem::clone("sykerolabs", request.consumer);
 
 		file_descriptor::ioctl(GPIO_V2_GET_LINE_IOCTL, &request);
 

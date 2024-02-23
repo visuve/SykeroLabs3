@@ -123,7 +123,7 @@ namespace sl
 	size_t file_descriptor::file_size() const
 	{
 		struct stat buffer;
-		clear(buffer);
+		mem::clear(buffer);
 
 		if (::fstat(_descriptor, &buffer) < 0)
 		{
