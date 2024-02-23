@@ -2,22 +2,22 @@
 
 #include "sykero_io.hpp"
 
-namespace sl
+namespace sl::gpio
 {
-	struct gpio_lvp // line value pair
+	struct line_value_pair
 	{
-		constexpr inline gpio_lvp(uint32_t offset, bool value = true) :
+		constexpr inline line_value_pair(uint32_t offset, bool value = true) :
 			offset(offset),
 			value(value)
 		{
 		}
 
-		constexpr auto operator <=> (const gpio_lvp& other) const
+		constexpr auto operator <=> (const line_value_pair& other) const
 		{
 			return offset <=> other.offset;
 		}
 
-		constexpr bool operator == (const gpio_lvp& other) const
+		constexpr bool operator == (const line_value_pair& other) const
 		{
 			return offset == other.offset;
 		}
@@ -26,18 +26,18 @@ namespace sl
 		bool value;
 	};
 
-	class gpio_line_group : private file_descriptor
+	class line_group : private io::file_descriptor
 	{
 	public:
-		gpio_line_group(int descriptor, const std::set<uint32_t>& offsets);
-		~gpio_line_group();
+		line_group(int descriptor, const std::set<uint32_t>& offsets);
+		~line_group();
 
-		void read_values(std::span<gpio_lvp> data) const;
-		void read_value(gpio_lvp& lvp) const;
+		void read_values(std::span<line_value_pair> data) const;
+		void read_value(line_value_pair& lvp) const;
 		bool read_event(gpio_v2_line_event& event) const;
 
-		void write_values(std::span<gpio_lvp> data) const;
-		void write_value(const gpio_lvp& lvp) const;
+		void write_values(std::span<line_value_pair> data) const;
+		void write_value(const line_value_pair& lvp) const;
 
 		template <typename Rep, typename Period>
 		bool poll(std::chrono::duration<Rep, Period> time) const
@@ -51,13 +51,13 @@ namespace sl
 		std::set<uint32_t> _offsets;
 	};
 
-	class gpio_chip : public file_descriptor
+	class chip : public io::file_descriptor
 	{
 	public:
-		gpio_chip(const std::filesystem::path& path);
-		~gpio_chip();
+		chip(const std::filesystem::path& path);
+		~chip();
 
-		gpio_line_group line_group(
+		gpio::line_group line_group(
 			uint64_t flags,
 			const std::set<uint32_t>& offsets,
 			std::chrono::microseconds debounce = std::chrono::microseconds(0)) const;

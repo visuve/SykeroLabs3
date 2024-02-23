@@ -2,14 +2,14 @@
 
 #include "sykero_io.hpp"
 
-namespace sl
+namespace sl::csv
 {
 	template <size_t Columns>
-	class csv_file : private file_descriptor
+	class file : private file_descriptor
 	{
 
 	public:
-		csv_file(const std::filesystem::path& path, const std::array<std::string_view, Columns>& header) :
+		file(const std::filesystem::path& path, const std::array<std::string_view, Columns>& header) :
 			file_descriptor(path, O_WRONLY | O_CREAT | O_APPEND)
 		{
 			for (auto column_name : header)

@@ -2,17 +2,17 @@
 
 #include "sykero_io.hpp"
 
-namespace sl
+namespace sl::pwm
 {
-	class pwm_chip
+	class chip
 	{
 	public:
-		pwm_chip(
+		chip(
 			const std::filesystem::path& path,
 			uint8_t line_number,
 			float frequency,
 			float initial_percent = 0);
-		~pwm_chip();
+		~chip();
 
 		void set_frequency(float frequency);
 
@@ -21,7 +21,7 @@ namespace sl
 	private:
 		const std::filesystem::path line_path;
 		int64_t _period_ns = 0;
-		file_descriptor _period;
-		file_descriptor _duty_cycle;
+		io::file_descriptor _period;
+		io::file_descriptor _duty_cycle;
 	};
 }

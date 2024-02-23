@@ -2,7 +2,7 @@
 #include "sykero_mem.hpp"
 #include "sykero_io.hpp"
 
-namespace sl
+namespace sl::io
 {
 	file_descriptor::file_descriptor(int descriptor) :
 		_descriptor(descriptor)

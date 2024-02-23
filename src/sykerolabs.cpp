@@ -35,7 +35,7 @@ namespace sl
 	std::atomic<float> cpu_celcius = 0;
 	std::atomic<float> environment_celcius = 0;
 
-	void measure_fans(const gpio_line_group& fans)
+	void measure_fans(const gpio::line_group& fans)
 	{
 		mem::clear(fan_rpms);
 
@@ -89,7 +89,7 @@ namespace sl
 		}
 	}
 
-	void monitor_water_level_sensors(const gpio_line_group& water_level_sensors)
+	void monitor_water_level_sensors(const gpio::line_group& water_level_sensors)
 	{
 		mem::clear(water_level_sensor_states);
 
@@ -136,7 +136,7 @@ namespace sl
 		throw std::runtime_error("Temperature sensor not found");
 	}
 
-	void measure_temperature(const file_descriptor& thermal_zone0, const file_descriptor& ds18b20)
+	void measure_temperature(const io::file_descriptor& thermal_zone0, const io::file_descriptor& ds18b20)
 	{
 		std::string buffer(5, 0);
 
@@ -160,7 +160,7 @@ namespace sl
 
 			if (delay > std::chrono::milliseconds(0))
 			{
-				sl::nanosleep(delay);
+				io::nanosleep(delay);
 			}
 		}
 	}
@@ -216,21 +216,21 @@ namespace sl
 			pins::FAN_2_TACHOMETER
 		};
 
-		gpio_chip chip("/dev/gpiochip4");
+		gpio::chip chip("/dev/gpiochip4");
 
 		// I do not have an oscilloscope so these values are arbitrary
 		constexpr auto water_level_sensor_debounce = std::chrono::milliseconds(10);
 		constexpr auto fan_tacho_debounce = std::chrono::microseconds(100);
 
-		gpio_line_group output_lines =
+		gpio::line_group output_lines =
 			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, output_pins);
 
-		gpio_line_group water_level_sensors =
+		gpio::line_group water_level_sensors =
 			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EDGE_FALLING,
 				water_level_sensor_pins,
 				water_level_sensor_debounce);
 
-		gpio_line_group fans =
+		gpio::line_group fans =
 			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING,
 				fan_tachometer_pins,
 				fan_tacho_debounce);
@@ -238,10 +238,10 @@ namespace sl
 		// Confusingly enough, the Rasperry Pi PWM 0 is in pwmchip2
 		// Fans use 25kHz https://www.mouser.com/pdfDocs/San_Ace_EPWMControlFunction.pdf
 		// https://noctua.at/pub/media/wysiwyg/Noctua_PWM_specifications_white_paper.pdf
-		pwm_chip fan_pwm("/sys/class/pwm/pwmchip2", 0, 25000);
+		pwm::chip fan_pwm("/sys/class/pwm/pwmchip2", 0, 25000);
 
-		file_descriptor thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
-		file_descriptor ds18b20(find_temperature_sensor_path());
+		io::file_descriptor thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
+		io::file_descriptor ds18b20(find_temperature_sensor_path());
 
 		uint64_t t = 0;
 
@@ -264,12 +264,12 @@ namespace sl
 		{
 			std::cout << "\nT=" << ++t << ": \n";
 
-			std::array<gpio_lvp, 4> output_data =
+			std::array<gpio::line_value_pair, 4> output_data =
 			{
-				gpio_lvp(pins::IRRIGATION_PUMP_1, t % 4 == 0),
-				gpio_lvp(pins::IRRIGATION_PUMP_2, t % 4 == 1),
-				gpio_lvp(pins::FAN_1_RELAY, t % 4 == 2),
-				gpio_lvp(pins::FAN_2_RELAY, t % 4 == 3)
+				gpio::line_value_pair(pins::IRRIGATION_PUMP_1, t % 4 == 0),
+				gpio::line_value_pair(pins::IRRIGATION_PUMP_2, t % 4 == 1),
+				gpio::line_value_pair(pins::FAN_1_RELAY, t % 4 == 2),
+				gpio::line_value_pair(pins::FAN_2_RELAY, t % 4 == 3)
 			};
 
 			output_lines.write_values(output_data);
@@ -289,7 +289,7 @@ namespace sl
 
 			fan_pwm.set_duty_percent(t % 100);
 
-			sl::nanosleep(std::chrono::milliseconds(1000));
+			io::nanosleep(std::chrono::milliseconds(1000));
 		}
 	}
 

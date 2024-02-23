@@ -1,6 +1,6 @@
 #pragma once
 
-namespace sl
+namespace sl::io
 {
 	class file_descriptor
 	{

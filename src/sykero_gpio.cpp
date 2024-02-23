@@ -2,28 +2,28 @@
 #include "sykero_mem.hpp"
 #include "sykero_gpio.hpp"
 
-namespace sl
+namespace sl::gpio
 {
-	gpio_line_group::gpio_line_group(int descriptor, const std::set<uint32_t>& offsets) :
+	line_group::line_group(int descriptor, const std::set<uint32_t>& offsets) :
 		file_descriptor(descriptor),
 		_offsets(offsets)
 	{
 		syslog(LOG_INFO, "gpio_line_group %d opened.", _descriptor);
 	}
 
-	gpio_line_group::~gpio_line_group()
+	line_group::~line_group()
 	{
 		syslog(LOG_INFO, "gpio_line_group %d closed.", _descriptor);
 	}
 
-	void gpio_line_group::read_values(std::span<gpio_lvp> data) const
+	void line_group::read_values(std::span<line_value_pair> data) const
 	{
 		assert(data.size() <= _offsets.size());
 
 		std::bitset<64> mask;
 		std::bitset<64> bits;
 
-		for (const gpio_lvp& lvp : data)
+		for (const line_value_pair& lvp : data)
 		{
 			size_t i = index_of(lvp.offset);
 			mask.set(i, true);
@@ -33,33 +33,33 @@ namespace sl
 		file_descriptor::ioctl(GPIO_V2_LINE_GET_VALUES_IOCTL, &values);
 		bits = values.bits;
 
-		for (gpio_lvp& lvp : data)
+		for (line_value_pair& lvp : data)
 		{
 			size_t i = index_of(lvp.offset);
 			lvp.value = bits[i];
 		}
 	}
 
-	void gpio_line_group::read_value(gpio_lvp& lvp) const
+	void line_group::read_value(line_value_pair& lvp) const
 	{
-		gpio_lvp data[1] = { lvp };
+		line_value_pair data[1] = { lvp };
 		read_values(data);
 		lvp.value = data[0].value;
 	}
 
-	bool gpio_line_group::read_event(gpio_v2_line_event& event) const
+	bool line_group::read_event(gpio_v2_line_event& event) const
 	{
 		return file_descriptor::read_value(event);
 	}
 
-	void gpio_line_group::write_values(std::span<gpio_lvp> data) const
+	void line_group::write_values(std::span<line_value_pair> data) const
 	{
 		assert(data.size() <= _offsets.size());
 
 		std::bitset<64> mask;
 		std::bitset<64> bits;
 
-		for (const gpio_lvp& lvp : data)
+		for (const line_value_pair& lvp : data)
 		{
 			size_t i = index_of(lvp.offset);
 			mask.set(i, true);
@@ -70,13 +70,13 @@ namespace sl
 		file_descriptor::ioctl(GPIO_V2_LINE_SET_VALUES_IOCTL, &values);
 	}
 
-	void gpio_line_group::write_value(const gpio_lvp& lvp) const
+	void line_group::write_value(const line_value_pair& lvp) const
 	{
-		gpio_lvp data[] = { lvp };
+		line_value_pair data[] = { lvp };
 		write_values(data);
 	}
 
-	size_t gpio_line_group::index_of(uint32_t offset) const
+	size_t line_group::index_of(uint32_t offset) const
 	{
 		auto iter = std::find(_offsets.cbegin(), _offsets.cend(), offset);
 
@@ -88,18 +88,18 @@ namespace sl
 		return std::distance(_offsets.cbegin(), iter);
 	}
 
-	gpio_chip::gpio_chip(const std::filesystem::path& path) :
+	chip::chip(const std::filesystem::path& path) :
 		file_descriptor(path)
 	{
 		syslog(LOG_INFO, "gpio_chip %d opened. Path: %s", _descriptor, path.c_str());
 	}
 
-	gpio_chip::~gpio_chip()
+	chip::~chip()
 	{
 		syslog(LOG_INFO, "gpio_chip %d closed.", _descriptor);
 	}
 
-	gpio_line_group gpio_chip::line_group(
+	gpio::line_group chip::line_group(
 		uint64_t flags,
 		const std::set<uint32_t>& offsets,
 		std::chrono::microseconds debounce) const
@@ -134,6 +134,6 @@ namespace sl
 
 		file_descriptor::ioctl(GPIO_V2_GET_LINE_IOCTL, &request);
 
-		return gpio_line_group(request.fd, offsets);
+		return gpio::line_group(request.fd, offsets);
 	}
 }
