@@ -5,12 +5,12 @@
 namespace sl::csv
 {
 	template <size_t Columns>
-	class file : private file_descriptor
+	class file : private io::file_descriptor
 	{
 
 	public:
 		file(const std::filesystem::path& path, const std::array<std::string_view, Columns>& header) :
-			file_descriptor(path, O_WRONLY | O_CREAT | O_APPEND)
+			io::file_descriptor(path, O_WRONLY | O_CREAT | O_APPEND)
 		{
 			for (auto column_name : header)
 			{
@@ -22,8 +22,8 @@ namespace sl::csv
 			if (file_size > 0 && file_size < _row.size())
 			{
 				// Malformed header, reopen and truncate
-				close();
-				open(path, O_WRONLY | O_TRUNC);
+				file_descriptor::close();
+				file_descriptor::open(path, O_WRONLY | O_TRUNC);
 				file_size = 0;
 			}
 
@@ -65,7 +65,14 @@ namespace sl::csv
 		template <typename T>
 		void append_value(T t)
 		{
-			append_text(std::to_string(t));
+			if constexpr (std::is_arithmetic_v<T>)
+			{
+				append_text(std::to_string(t));
+			}
+			else
+			{
+				append_text(t);
+			}
 		}
 
 		size_t _current_column = 0;

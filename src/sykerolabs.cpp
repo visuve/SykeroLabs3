@@ -4,6 +4,7 @@
 #include "sykero_gpio.hpp"
 #include "sykero_pwm.hpp"
 #include "sykero_log.hpp"
+#include "sykero_csv.hpp"
 
 namespace sl
 {
@@ -196,6 +197,22 @@ namespace sl
 
 	void run()
 	{
+		csv::file<12u> csv("/dev/stdout",
+		{
+				"Time",
+				"Water Level Sensor 1",
+				"Water Level Sensor 2",
+				"Pump 1 Relay",
+				"Pump 2 Relay",
+				"Environment Temperature",
+				"Fan 1 Relay",
+				"Fan 2 Relay",
+				"Fan Duty Percent",
+				"Fan 1 RPM",
+				"Fan 2 RPM",
+				"CPU Temperature" 
+		});
+
 		const std::set<uint32_t> water_level_sensor_pins =
 		{
 			pins::WATER_LEVEL_SENSOR_1,
@@ -262,8 +279,6 @@ namespace sl
 
 		while (!signaled)
 		{
-			std::cout << "\nT=" << ++t << ": \n";
-
 			std::array<gpio::line_value_pair, 4> output_data =
 			{
 				gpio::line_value_pair(pins::IRRIGATION_PUMP_1, t % 4 == 0),
@@ -274,20 +289,23 @@ namespace sl
 
 			output_lines.write_values(output_data);
 
-			for (size_t i = 0; i < water_level_sensor_states.size(); ++i)
-			{
-				std::cout << "Water level sensor " << i + 1 << " = " << (water_level_sensor_states[i] ? "Low" : "High") << '\n';
-			}
+			float duty_percent = t % 100;
 
-			for (size_t i = 0; i < fan_rpms.size(); ++i)
-			{
-				std::cout << "Fan " << i + 1 << " = " << fan_rpms[i] << " RPM\n";
-			}
+			fan_pwm.set_duty_percent(duty_percent);
 
-			std::cout << "CPU = " << cpu_celcius << "c\n";
-			std::cout << "Environment = " << environment_celcius << "c\n";
-
-			fan_pwm.set_duty_percent(t % 100);
+			csv.append_row(
+				++t,
+				water_level_sensor_states[0] ? "Low" : "High",
+				water_level_sensor_states[1] ? "Low" : "High",
+				"Off",
+				"Off",
+				environment_celcius.load(),
+				"On",
+				"On",
+				duty_percent,
+				fan_rpms[0].load(),
+				fan_rpms[1].load(),
+				cpu_celcius.load());
 
 			io::nanosleep(std::chrono::milliseconds(1000));
 		}
