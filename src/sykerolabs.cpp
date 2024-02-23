@@ -27,18 +27,24 @@ namespace sl
 	std::atomic<int> signaled = 0;
 
 	constexpr size_t water_level_sensor_count = 2;
-	std::array<std::atomic<bool>, water_level_sensor_count> water_level_sensor_states = { false, false };
+	std::array<std::atomic<bool>, water_level_sensor_count> water_level_sensor_states;
 
 	constexpr size_t fan_count = 2;
-	std::array<std::atomic<uint16_t>, fan_count> fan_rpms = { 0, 0 };
+	std::array<std::atomic<uint16_t>, fan_count> fan_rpms;
 
 	std::atomic<float> cpu_celcius = 0;
 	std::atomic<float> environment_celcius = 0;
 
 	void measure_fans(const gpio_line_group& fans)
 	{
-		std::array<float, fan_count> revolutions = { 0, 0 };
-		std::array<float, fan_count> measure_start = { 0, 0 };
+		clear(fan_rpms);
+
+		std::array<float, fan_count> revolutions;
+		clear(revolutions);
+
+		std::array<float, fan_count> measure_start;
+		clear(measure_start);
+
 		gpio_v2_line_event event;
 		clear(event);
 
@@ -79,12 +85,14 @@ namespace sl
 				++revolutions[fan_index];
 			}
 
-			std::fill(fan_rpms.begin(), fan_rpms.end(), 0);
+			clear(fan_rpms);
 		}
 	}
 
 	void monitor_water_level_sensors(const gpio_line_group& water_level_sensors)
 	{
+		clear(water_level_sensor_states);
+
 		gpio_v2_line_event event;
 		clear(event);
 
@@ -141,7 +149,7 @@ namespace sl
 
 			cpu_celcius = std::stof(buffer) / 1000.0f;
 
-			ds18b20.read_text(buffer); // This tends to take about a second...
+			ds18b20.read_text(buffer); // Reading a DS18B20 has an intrinsic delay of 750ms
 			ds18b20.lseek(0, SEEK_SET);
 
 			environment_celcius = std::stof(buffer) / 1000.0f;

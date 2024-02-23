@@ -42,4 +42,9 @@ namespace sl
 			++begin;
 		}
 	}
+
+	constexpr void clear(std::ranges::common_range auto& container)
+	{
+		std::fill(container.begin(), container.end(), 0);
+	}
 }
