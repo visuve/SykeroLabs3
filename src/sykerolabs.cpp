@@ -3,6 +3,7 @@
 #include "sykero_io.hpp"
 #include "sykero_gpio.hpp"
 #include "sykero_pwm.hpp"
+#include "sykero_log.hpp"
 
 namespace sl
 {
@@ -110,8 +111,7 @@ namespace sl
 
 				water_level_sensor_state = event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? false : true;
 
-				syslog(LOG_NOTICE,
-					"Water level sensor %zu changed to %s",
+				log_notice("Water level sensor %zu changed to %s",
 					++sensor_index,
 					event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? "high" : "low");
 			}
@@ -167,7 +167,7 @@ namespace sl
 
 	void signal_handler(int signal)
 	{
-		syslog(LOG_NOTICE, "Signaled: %d", signal);
+		log_notice("Signaled: %d", signal);
 		signaled = signal;
 	}
 
@@ -180,13 +180,13 @@ namespace sl
 		}
 		catch (const std::system_error& e)
 		{
-			syslog(LOG_CRIT, "std::system_error: %s", e.what());
+			log_critical("std::system_error: %s", e.what());
 
 			return e.code().value();
 		}
 		catch (const std::exception& e)
 		{
-			syslog(LOG_CRIT, "std::exception: %s", e.what());
+			log_critical("std::exception: %s", e.what());
 
 			return -1;
 		}
@@ -292,33 +292,11 @@ namespace sl
 			io::nanosleep(std::chrono::milliseconds(1000));
 		}
 	}
-
-	struct syslog_facility
-	{
-		syslog_facility(int facility)
-		{
-#ifdef NDEBUG
-			setlogmask(LOG_UPTO(LOG_WARNING));
-#else
-			setlogmask(LOG_UPTO(LOG_DEBUG));
-#endif
-			openlog("sykerolabs", LOG_CONS | LOG_PID | LOG_NDELAY, facility);
-
-			syslog(LOG_INFO, "starting...");
-		}
-
-		~syslog_facility()
-		{
-			syslog(LOG_INFO, "stopped!");
-
-			closelog();
-		}
-	};
 }
 
 int main()
 {
-	sl::syslog_facility slsf(LOG_LOCAL0);
+	sl::log::facility log_facility(1 << 3);
 
 	std::signal(SIGINT, sl::signal_handler);
 

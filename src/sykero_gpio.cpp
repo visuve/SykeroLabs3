@@ -1,6 +1,7 @@
 #include "mega.pch"
 #include "sykero_mem.hpp"
 #include "sykero_gpio.hpp"
+#include "sykero_log.hpp"
 
 namespace sl::gpio
 {
@@ -8,12 +9,12 @@ namespace sl::gpio
 		file_descriptor(descriptor),
 		_offsets(offsets)
 	{
-		syslog(LOG_INFO, "gpio_line_group %d opened.", _descriptor);
+		log_info("gpio::line_group %d opened.", _descriptor);
 	}
 
 	line_group::~line_group()
 	{
-		syslog(LOG_INFO, "gpio_line_group %d closed.", _descriptor);
+		log_info("gpio::line_group %d closed.", _descriptor);
 	}
 
 	void line_group::read_values(std::span<line_value_pair> data) const
@@ -91,12 +92,12 @@ namespace sl::gpio
 	chip::chip(const std::filesystem::path& path) :
 		file_descriptor(path)
 	{
-		syslog(LOG_INFO, "gpio_chip %d opened. Path: %s", _descriptor, path.c_str());
+		log_info("gpio::chip %d opened. Path: %s", _descriptor, path.c_str());
 	}
 
 	chip::~chip()
 	{
-		syslog(LOG_INFO, "gpio_chip %d closed.", _descriptor);
+		log_info("gpio::chip %d closed.", _descriptor);
 	}
 
 	gpio::line_group chip::line_group(

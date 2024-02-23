@@ -1,5 +1,6 @@
 #include "mega.pch"
 #include "sykero_pwm.hpp"
+#include "sykero_log.hpp"
 
 namespace sl::pwm
 {
@@ -29,12 +30,12 @@ namespace sl::pwm
 		io::file_descriptor enabled(line_path / "enable", O_WRONLY);
 		enabled.write_text("1");
 
-		syslog(LOG_INFO, "pwm_chip %s opened.", line_path.c_str());
+		log_info("pwm::chip %s opened.", line_path.c_str());
 	}
 
 	chip::~chip()
 	{
-		syslog(LOG_INFO, "pwm_chip %s closed.", line_path.c_str());
+		log_info("pwm::chip %s closed.", line_path.c_str());
 	}
 
 	void chip::set_frequency(float frequency)

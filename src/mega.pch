@@ -14,13 +14,13 @@
 #include <ranges>
 #include <regex>
 #include <set>
+#include <source_location>
 #include <span>
 #include <thread>
 
 // Linux or POSIX specific
 #include <fcntl.h>
 #include <linux/gpio.h>
-#include <syslog.h>
 #include <sys/ioctl.h>
 #include <sys/poll.h>
 #include <sys/stat.h>

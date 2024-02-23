@@ -1,6 +1,7 @@
 #include "mega.pch"
 #include "sykero_mem.hpp"
 #include "sykero_io.hpp"
+#include "sykero_log.hpp"
 
 namespace sl::io
 {
@@ -26,7 +27,7 @@ namespace sl::io
 		{
 			if (::close(_descriptor) < 0)
 			{
-				syslog(LOG_ERR, "close(%d) failed. Errno %d", _descriptor, errno);
+				log_error("close(%d) failed. Errno %d", _descriptor, errno);
 			}
 		}
 	}
