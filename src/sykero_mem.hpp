@@ -2,10 +2,28 @@
 
 namespace sl::mem
 {
+	template <typename T>
+	constexpr void clear(T& x)
+	{
+		auto begin = reinterpret_cast<uint8_t*>(&x);
+		auto end = reinterpret_cast<uint8_t*>(&x) + sizeof(T);
+
+		while (begin < end)
+		{
+			*begin = 0;
+			++begin;
+		}
+	}
+
+	constexpr void clear(std::ranges::common_range auto& container)
+	{
+		std::fill(container.begin(), container.end(), 0);
+	}
+
 	template <typename T, size_t FS, size_t TS>
 	constexpr void clone(const T(&from)[FS], T(&to)[TS])
 	{
-		static_assert(TS >= FS, "Target size is smaller than source size!");
+		static_assert(FS <= TS, "Will not fit!");
 
 		for (size_t i = 0; i < FS; ++i)
 		{
@@ -30,21 +48,16 @@ namespace sl::mem
 		}
 	}
 
-	template <typename T>
-	constexpr void clear(T& x)
+	template <size_t FromSize, size_t ToSize, typename T>
+	constexpr void join(const T(&from)[FromSize], T(&to)[ToSize])
 	{
-		auto begin = reinterpret_cast<uint8_t*>(&x);
-		auto end = reinterpret_cast<uint8_t*>(&x) + sizeof(T);
+		static_assert(FromSize < ToSize, "Join from smaller to larger array. Otherwise use mem::clone.");
 
-		while (begin < end)
+		constexpr size_t offset = ToSize - FromSize;
+
+		for (size_t i = 0; i < FromSize; ++i)
 		{
-			*begin = 0;
-			++begin;
+			to[i + offset] = from[i];
 		}
-	}
-
-	constexpr void clear(std::ranges::common_range auto& container)
-	{
-		std::fill(container.begin(), container.end(), 0);
 	}
 }
