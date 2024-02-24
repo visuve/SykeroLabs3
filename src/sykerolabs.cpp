@@ -93,7 +93,18 @@ namespace sl
 
 	void monitor_water_level_sensors(const gpio::line_group& water_level_sensors)
 	{
-		mem::clear(water_level_sensor_states);
+		{
+			std::array<gpio::line_value_pair, water_level_sensor_count> data =
+			{
+				gpio::line_value_pair(pins::WATER_LEVEL_SENSOR_1),
+				gpio::line_value_pair(pins::WATER_LEVEL_SENSOR_2)
+			};
+
+			water_level_sensors.read_values(data);
+
+			water_level_sensor_states[0] = data[0].value;
+			water_level_sensor_states[1] = data[1].value;
+		}
 
 		gpio_v2_line_event event;
 		mem::clear(event);
@@ -110,7 +121,7 @@ namespace sl
 
 				auto& water_level_sensor_state = water_level_sensor_states[sensor_index];
 
-				water_level_sensor_state = event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? false : true;
+				water_level_sensor_state = event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? true : false;
 
 				log_notice("Water level sensor %zu changed to %s",
 					++sensor_index,
@@ -295,8 +306,8 @@ namespace sl
 
 			csv.append_row(
 				++t,
-				water_level_sensor_states[0] ? "Low" : "High",
-				water_level_sensor_states[1] ? "Low" : "High",
+				water_level_sensor_states[0].load() ? "High" : "Low",
+				water_level_sensor_states[1].load() ? "High" : "Low",
 				"Off",
 				"Off",
 				environment_celcius.load(),
