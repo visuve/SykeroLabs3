@@ -25,3 +25,9 @@
 #include <sys/poll.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#define SL_NON_COPYABLE(T) \
+	T(const T &) = delete; \
+	T(T&&) = delete; \
+	T& operator = (const T &) = delete; \
+	T& operator = (T&&) = delete

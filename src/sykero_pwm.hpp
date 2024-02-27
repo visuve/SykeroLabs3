@@ -4,7 +4,7 @@
 
 namespace sl::pwm
 {
-	class chip
+	class chip final
 	{
 	public:
 		chip(
@@ -13,6 +13,8 @@ namespace sl::pwm
 			float frequency,
 			float initial_percent = 0);
 		~chip();
+
+		SL_NON_COPYABLE(chip);
 
 		void set_frequency(float frequency);
 

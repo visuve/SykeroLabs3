@@ -5,7 +5,7 @@
 namespace sl::csv
 {
 	template <size_t Columns>
-	class file : private io::file_descriptor
+	class file final : private io::file_descriptor
 	{
 
 	public:
@@ -36,6 +36,8 @@ namespace sl::csv
 			_row.clear();
 			_current_column = 0;
 		}
+
+		SL_NON_COPYABLE(file);
 
 		template<typename... Args>
 		void append_row(Args... args)

@@ -26,10 +26,11 @@ namespace sl::gpio
 		bool value;
 	};
 
-	class line_group : private io::file_descriptor
+	class line_group final : private io::file_descriptor
 	{
 	public:
 		line_group(int descriptor, const std::set<uint32_t>& offsets);
+		SL_NON_COPYABLE(line_group);
 		~line_group();
 
 		void read_values(std::span<line_value_pair> data) const;
@@ -51,10 +52,11 @@ namespace sl::gpio
 		std::set<uint32_t> _offsets;
 	};
 
-	class chip : public io::file_descriptor
+	class chip final : public io::file_descriptor
 	{
 	public:
 		chip(const std::filesystem::path& path);
+		SL_NON_COPYABLE(chip);
 		~chip();
 
 		gpio::line_group line_group(

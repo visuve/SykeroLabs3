@@ -4,11 +4,12 @@
 
 namespace sl::log
 {
-	class facility
+	class facility final
 	{
 	public:
 		facility(int facility);
 		~facility();
+		SL_NON_COPYABLE(facility);
 	};
 
 	extern "C" void syslog(int, const char*, ...);

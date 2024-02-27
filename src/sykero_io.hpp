@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sykero_mem.hpp"
+
 namespace sl::io
 {
 	class file_descriptor
@@ -8,6 +10,7 @@ namespace sl::io
 		file_descriptor() = default;
 		file_descriptor(int descriptor);
 		file_descriptor(const std::filesystem::path& path, int mode = O_RDONLY);
+		SL_NON_COPYABLE(file_descriptor);
 		virtual ~file_descriptor();
 
 		void open(const std::filesystem::path& path, int mode);
