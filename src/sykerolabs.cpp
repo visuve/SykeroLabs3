@@ -5,6 +5,7 @@
 #include "sykero_pwm.hpp"
 #include "sykero_log.hpp"
 #include "sykero_csv.hpp"
+#include "sykero_time.hpp"
 
 namespace sl
 {
@@ -172,7 +173,7 @@ namespace sl
 
 			if (delay > std::chrono::milliseconds(0))
 			{
-				io::nanosleep(delay);
+				time::nanosleep(delay);
 			}
 		}
 	}
@@ -318,7 +319,7 @@ namespace sl
 				fan_rpms[1].load(),
 				cpu_celcius.load());
 
-			io::nanosleep(std::chrono::milliseconds(1000));
+			time::nanosleep(std::chrono::milliseconds(1000));
 		}
 	}
 }

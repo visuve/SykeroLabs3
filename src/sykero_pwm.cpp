@@ -1,6 +1,7 @@
 #include "mega.pch"
 #include "sykero_pwm.hpp"
 #include "sykero_log.hpp"
+#include "sykero_time.hpp"
 
 namespace sl::pwm
 {
@@ -18,7 +19,7 @@ namespace sl::pwm
 			export_file.fsync();
 			export_file.close();
 
-			io::nanosleep(std::chrono::milliseconds(500));
+			time::nanosleep(std::chrono::milliseconds(500));
 		}
 
 		_period.open(line_path / "period", O_WRONLY);
