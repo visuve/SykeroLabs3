@@ -35,9 +35,6 @@ namespace sl
 	constexpr size_t fan_count = 2;
 	std::array<std::atomic<uint16_t>, fan_count> fan_rpms;
 
-	std::atomic<float> cpu_celcius = 0;
-	std::atomic<float> environment_celcius = 0;
-
 	void measure_fans(const gpio::line_group& fans)
 	{
 		mem::clear(fan_rpms);
@@ -149,33 +146,22 @@ namespace sl
 		throw std::runtime_error("Temperature sensor not found");
 	}
 
-	void measure_temperature(const io::file_descriptor& thermal_zone0, const io::file_descriptor& ds18b20)
+	float read_temperature(const io::file_descriptor& file)
 	{
-		std::string buffer(5, 0);
+		thread_local static std::string buffer(0x200, '\0');
 
-		while (!signaled)
+		size_t bytes_read = file.read_text(buffer);
+
+		if (!bytes_read)
 		{
-			auto before = std::chrono::steady_clock::now();
-
-			thermal_zone0.read_text(buffer);
-			thermal_zone0.lseek(0, SEEK_SET);
-
-			cpu_celcius = std::stof(buffer) / 1000.0f;
-
-			ds18b20.read_text(buffer); // Reading a DS18B20 has an intrinsic delay of 750ms
-			ds18b20.lseek(0, SEEK_SET);
-
-			environment_celcius = std::stof(buffer) / 1000.0f;
-
-			auto after = std::chrono::steady_clock::now();
-			auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(after - before);
-			auto delay = diff - std::chrono::milliseconds(1000);
-
-			if (delay > std::chrono::milliseconds(0))
-			{
-				time::nanosleep(delay);
-			}
+			throw std::runtime_error("Failed to read temperature");
 		}
+
+		file.lseek(0, SEEK_SET);
+
+		std::string trimmed = buffer.substr(0, bytes_read - 1);
+
+		return std::stof(trimmed) / 1000.0f;
 	}
 
 	void signal_handler(int signal)
@@ -282,11 +268,6 @@ namespace sl
 			exception_handler(measure_fans, fans);
 		});
 
-		std::jthread temperature_measurement_thread([&]()
-		{
-			exception_handler(measure_temperature, thermal_zone0, ds18b20);
-		});
-
 		for (uint64_t t = 0; !signaled; ++t)
 		{
 			auto now = std::chrono::system_clock::now();
@@ -316,13 +297,13 @@ namespace sl
 				water_level_sensor_states[1].load() ? "High" : "Low",
 				"Off",
 				"Off",
-				environment_celcius.load(),
+				read_temperature(ds18b20),
 				"On",
 				"On",
 				duty_percent,
 				fan_rpms[0].load(),
 				fan_rpms[1].load(),
-				cpu_celcius.load());
+				read_temperature(thermal_zone0));
 		}
 	}
 }
