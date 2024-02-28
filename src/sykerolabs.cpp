@@ -272,8 +272,6 @@ namespace sl
 		io::file_descriptor thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
 		io::file_descriptor ds18b20(find_temperature_sensor_path());
 
-		uint64_t t = 0;
-
 		std::jthread water_level_monitoring_thread([&]()
 		{
 			exception_handler(monitor_water_level_sensors, water_level_sensors);
@@ -289,8 +287,13 @@ namespace sl
 			exception_handler(measure_temperature, thermal_zone0, ds18b20);
 		});
 
-		while (!signaled)
+		for (uint64_t t = 0; !signaled; ++t)
 		{
+			auto now = std::chrono::system_clock::now();
+			auto next_full_minute = std::chrono::ceil<std::chrono::minutes>(now);
+			auto sleep_time = next_full_minute - now;
+			time::nanosleep(sleep_time);
+
 			std::array<gpio::line_value_pair, 4> output_data =
 			{
 				gpio::line_value_pair(pins::IRRIGATION_PUMP_1, t % 4 == 0),
@@ -305,8 +308,10 @@ namespace sl
 
 			fan_pwm.set_duty_percent(duty_percent);
 
+			now = std::chrono::system_clock::now();
+
 			csv.append_row(
-				++t,
+				time::to_string(now),
 				water_level_sensor_states[0].load() ? "High" : "Low",
 				water_level_sensor_states[1].load() ? "High" : "Low",
 				"Off",
@@ -318,8 +323,6 @@ namespace sl
 				fan_rpms[0].load(),
 				fan_rpms[1].load(),
 				cpu_celcius.load());
-
-			time::nanosleep(std::chrono::milliseconds(1000));
 		}
 	}
 }
