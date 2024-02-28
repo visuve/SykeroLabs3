@@ -8,7 +8,7 @@ namespace sl::io
 	{
 	public:
 		file_descriptor() = default;
-		file_descriptor(int descriptor);
+		explicit file_descriptor(int descriptor);
 		file_descriptor(const std::filesystem::path& path, int mode = O_RDONLY);
 		SL_NON_COPYABLE(file_descriptor);
 		virtual ~file_descriptor();
@@ -16,13 +16,13 @@ namespace sl::io
 		void open(const std::filesystem::path& path, int mode);
 		void close(bool sync = true);
 
-		bool read(void* data, size_t size) const;
-		bool read_text(std::string& text) const;
+		size_t read(void* data, size_t size) const;
+		size_t read_text(std::string& text) const;
 
 		template <typename T>
 		bool read_value(T& t) const
 		{
-			return file_descriptor::read(&t, sizeof(T));
+			return file_descriptor::read(&t, sizeof(T)) == sizeof(T);
 		}
 
 		void write(const void* data, size_t size) const;
@@ -36,7 +36,7 @@ namespace sl::io
 
 		void fsync() const;
 		size_t file_size() const;
-		void lseek(off_t offset, int whence) const;
+		off_t lseek(off_t offset, int whence) const;
 
 	protected:
 		template<typename... Args>

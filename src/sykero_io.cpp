@@ -66,29 +66,19 @@ namespace sl::io
 		}
 	}
 
-	bool file_descriptor::read(void* data, size_t size) const
+	size_t file_descriptor::read(void* data, size_t size) const
 	{
 		int result = ::read(_descriptor, data, size);
-
-		if (result == 0)
-		{
-			return false;
-		}
 
 		if (result < 0)
 		{
 			throw std::system_error(errno, std::system_category(), "read");
 		}
 
-		if (static_cast<size_t>(result) != size)
-		{
-			throw std::system_error(EIO, std::system_category(), "read");
-		}
-
-		return true;
+		return static_cast<size_t>(result);
 	}
 
-	bool file_descriptor::read_text(std::string& text) const
+	size_t file_descriptor::read_text(std::string& text) const
 	{
 		return file_descriptor::read(text.data(), text.size());
 	}
@@ -134,11 +124,15 @@ namespace sl::io
 		return buffer.st_size;
 	}
 
-	void file_descriptor::lseek(off_t offset, int whence) const
+	off_t file_descriptor::lseek(off_t offset, int whence) const
 	{
-		if (::lseek(_descriptor, offset, whence) < 0)
+		off_t result = ::lseek(_descriptor, offset, whence);
+
+		if (result < 0)
 		{
 			throw std::system_error(errno, std::system_category(), "lseek");
 		}
+
+		return result;
 	}
 }
