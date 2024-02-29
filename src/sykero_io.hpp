@@ -9,11 +9,11 @@ namespace sl::io
 	public:
 		file_descriptor() = default;
 		explicit file_descriptor(int descriptor);
-		file_descriptor(const std::filesystem::path& path, int mode = O_RDONLY);
+		file_descriptor(const std::filesystem::path& path, int flags = O_RDONLY);
 		SL_NON_COPYABLE(file_descriptor);
 		virtual ~file_descriptor();
 
-		void open(const std::filesystem::path& path, int mode);
+		void open(const std::filesystem::path& path, int flags);
 		void close(bool sync = true);
 
 		size_t read(void* data, size_t size) const;

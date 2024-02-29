@@ -15,10 +15,10 @@ namespace sl::io
 		}
 	}
 
-	file_descriptor::file_descriptor(const std::filesystem::path& path, int mode) :
+	file_descriptor::file_descriptor(const std::filesystem::path& path, int flags) :
 		_descriptor(0)
 	{
-		open(path, mode);
+		file_descriptor::open(path, flags);
 	}
 
 	file_descriptor::~file_descriptor()
@@ -32,11 +32,19 @@ namespace sl::io
 		}
 	}
 
-	void file_descriptor::open(const std::filesystem::path& path, int mode)
+	void file_descriptor::open(const std::filesystem::path& path, int flags)
 	{
 		file_descriptor::close();
 
-		_descriptor = ::open(path.c_str(), mode);
+		if ((flags & O_CREAT) == O_CREAT)
+		{
+			constexpr mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+			_descriptor = ::open(path.c_str(), flags, mode);
+		}
+		else
+		{
+			_descriptor = ::open(path.c_str(), flags);
+		}
 
 		if (_descriptor < 0)
 		{
