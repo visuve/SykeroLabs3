@@ -16,7 +16,14 @@ namespace sl::time
 			throw std::runtime_error("std::localtime failed");
 		}
 
-		assert(tm.tm_hour >= 0 && tm.tm_hour < 24);
+		assert(tm.tm_sec >= 0 && tm.tm_hour <= 60);
+		assert(tm.tm_min >= 0 && tm.tm_hour <= 59);
+		assert(tm.tm_hour >= 0 && tm.tm_hour <= 23);
+		assert(tm.tm_mday >= 1 && tm.tm_hour <= 31);
+		assert(tm.tm_mon >= 0 && tm.tm_mon <= 11);
+		assert(tm.tm_year);
+		assert(tm.tm_wday >= 0 && tm.tm_wday <= 6);
+		assert(tm.tm_yday >= 0 && tm.tm_yday <= 365);
 
 		return tm;
 	}

@@ -331,7 +331,7 @@ namespace sl
 			exception_handler(measure_fans, fan_tachometers);
 		});
 
-		for (uint64_t t = 0; !signaled; ++t)
+		for (int minute = time::local_time().tm_min; !signaled; ++minute)
 		{
 			float environment_celcius = read_temperature(ds18b20);
 			float duty_percent;
@@ -345,7 +345,7 @@ namespace sl
 			}
 			else
 			{
-				pump_state = toggle_irrigation(irrigation_pumps, t % 30 == 0);
+				pump_state = toggle_irrigation(irrigation_pumps, minute % 30 == 0);
 				duty_percent = adjust_fans(fan_relays, fan_pwm, environment_celcius);
 			}
 

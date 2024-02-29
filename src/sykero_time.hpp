@@ -2,6 +2,8 @@
 
 namespace sl::time
 {
+	std::tm local_time(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
+
 	bool is_night(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
 
 	std::string to_string(const std::chrono::system_clock::time_point& time_point);
