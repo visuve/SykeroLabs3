@@ -47,6 +47,7 @@ namespace sl::csv
 			write_text(_row);
 			_row.clear();
 			_current_column = 0;
+			file_descriptor::fsync();
 		}
 
 	private:
