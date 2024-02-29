@@ -128,24 +128,6 @@ namespace sl
 		}
 	}
 
-	std::filesystem::path find_temperature_sensor_path()
-	{
-		const std::regex regex("^28-[0-9a-f]{12}$");
-
-		for (const auto& entry : std::filesystem::directory_iterator("/sys/bus/w1/devices/"))
-		{
-			const std::filesystem::path path = entry.path();
-			const std::string filename = path.filename().string();
-
-			if (std::regex_search(filename, regex))
-			{
-				return path / "temperature";
-			}
-		}
-
-		throw std::runtime_error("Temperature sensor not found");
-	}
-
 	float read_temperature(const io::file_descriptor& file)
 	{
 		thread_local static std::string buffer(0x200, '\0');
@@ -249,22 +231,58 @@ namespace sl
 		return 0;
 	}
 
+	std::filesystem::path find_temperature_sensor_path()
+	{
+		const std::regex regex("^28-[0-9a-f]{12}$");
+
+		for (const auto& entry : std::filesystem::directory_iterator("/sys/bus/w1/devices/"))
+		{
+			const std::filesystem::path path = entry.path();
+			const std::string filename = path.filename().string();
+
+			if (std::regex_search(filename, regex))
+			{
+				return path / "temperature";
+			}
+		}
+
+		throw std::runtime_error("Temperature sensor not found");
+	}
+
+	std::filesystem::path csv_file_path()
+	{
+#ifdef NDEBUG
+		const std::filesystem::path home(getenv("HOME"));
+
+		auto sykerolabs = home / "sykerolabs";
+
+		if (!std::filesystem::exists(sykerolabs))
+		{
+			std::filesystem::create_directory(sykerolabs);
+		}
+
+		return sykerolabs / (time::date_string() + ".csv");
+#else
+		return "/dev/stdout";
+#endif
+	}
+
 	void run()
 	{
-		csv::file<12u> csv("/dev/stdout",
+		csv::file<12u> csv(csv_file_path(),
 		{
-				"Time",
-				"Water Level Sensor 1",
-				"Water Level Sensor 2",
-				"Pump 1 Relay",
-				"Pump 2 Relay",
-				"Environment Temperature",
-				"Fan 1 Relay",
-				"Fan 2 Relay",
-				"Fan Duty Percent",
-				"Fan 1 RPM",
-				"Fan 2 RPM",
-				"CPU Temperature" 
+			"Time",
+			"Water Level Sensor 1",
+			"Water Level Sensor 2",
+			"Pump 1 Relay",
+			"Pump 2 Relay",
+			"Environment Temperature",
+			"Fan 1 Relay",
+			"Fan 2 Relay",
+			"Fan Duty Percent",
+			"Fan 1 RPM",
+			"Fan 2 RPM",
+			"CPU Temperature" 
 		});
 
 		const std::set<uint32_t> water_level_sensor_pins =
