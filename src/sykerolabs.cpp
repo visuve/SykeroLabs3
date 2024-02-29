@@ -164,6 +164,62 @@ namespace sl
 		return std::stof(trimmed) / 1000.0f;
 	}
 
+	bool toggle_irrigation(const gpio::line_group& irrigation_pumps, bool toggle)
+	{
+		std::array<gpio::line_value_pair, 2> states =
+		{
+			gpio::line_value_pair(pins::IRRIGATION_PUMP_1, !toggle),
+			gpio::line_value_pair(pins::IRRIGATION_PUMP_2, !toggle),
+		};
+
+		irrigation_pumps.write_values(states);
+
+		// TODO: maybe read the actual value and do not assume
+		return toggle;
+	}
+
+	float adjust_fans(const gpio::line_group& fan_relays, pwm::chip& pwm, float temperature)
+	{
+		constexpr float MIN_TEMPERATURE = 20.0f;
+		constexpr float MAX_TEMPERATURE = 40.0f;
+		constexpr float STEP = 100.0f / (MAX_TEMPERATURE - MIN_TEMPERATURE);
+
+		std::array<gpio::line_value_pair, 2> states =
+		{
+			gpio::line_value_pair(pins::FAN_1_RELAY, temperature > MIN_TEMPERATURE),
+			gpio::line_value_pair(pins::FAN_2_RELAY, temperature > MIN_TEMPERATURE),
+		};
+
+		float duty_percent;
+
+		if (temperature <= MIN_TEMPERATURE)
+		{
+			duty_percent = 0.0f;
+
+		}
+		else if (temperature >= MAX_TEMPERATURE)
+		{
+			duty_percent = 100.0f;
+		}
+		else
+		{
+			duty_percent = (temperature - MIN_TEMPERATURE) * STEP;
+		}
+
+		pwm.set_duty_percent(duty_percent);
+		fan_relays.write_values(states);
+
+		return duty_percent;
+	}
+
+	void sleep_until_next_even_minute()
+	{
+		auto now = std::chrono::system_clock::now();
+		auto next_full_minute = std::chrono::ceil<std::chrono::minutes>(now);
+		auto sleep_time = next_full_minute - now;
+		time::nanosleep(sleep_time);
+	}
+
 	void signal_handler(int signal)
 	{
 		log_notice("Signaled: %d", signal);
@@ -217,10 +273,14 @@ namespace sl
 			pins::WATER_LEVEL_SENSOR_2
 		};
 
-		const std::set<uint32_t> output_pins =
+		const std::set<uint32_t> irrigation_pump_pins =
 		{
 			pins::IRRIGATION_PUMP_1,
-			pins::IRRIGATION_PUMP_2,
+			pins::IRRIGATION_PUMP_2
+		};
+
+		const std::set<uint32_t> fan_relay_pins =
+		{
 			pins::FAN_1_RELAY,
 			pins::FAN_2_RELAY
 		};
@@ -237,15 +297,18 @@ namespace sl
 		constexpr auto water_level_sensor_debounce = std::chrono::milliseconds(10);
 		constexpr auto fan_tacho_debounce = std::chrono::microseconds(100);
 
-		gpio::line_group output_lines =
-			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, output_pins);
+		gpio::line_group irrigation_pumps =
+			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, irrigation_pump_pins);
 
 		gpio::line_group water_level_sensors =
 			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EDGE_FALLING,
 				water_level_sensor_pins,
 				water_level_sensor_debounce);
 
-		gpio::line_group fans =
+		gpio::line_group fan_relays =
+			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, fan_relay_pins);
+
+		gpio::line_group fan_tachometers =
 			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING,
 				fan_tachometer_pins,
 				fan_tacho_debounce);
@@ -265,45 +328,44 @@ namespace sl
 
 		std::jthread fan_measurement_thread([&]()
 		{
-			exception_handler(measure_fans, fans);
+			exception_handler(measure_fans, fan_tachometers);
 		});
 
 		for (uint64_t t = 0; !signaled; ++t)
 		{
-			auto now = std::chrono::system_clock::now();
-			auto next_full_minute = std::chrono::ceil<std::chrono::minutes>(now);
-			auto sleep_time = next_full_minute - now;
-			time::nanosleep(sleep_time);
+			float environment_celcius = read_temperature(ds18b20);
+			float duty_percent;
+			bool pump_state;
 
-			std::array<gpio::line_value_pair, 4> output_data =
+			// TODO: reduce unnecessary IO by storing the previous state or something
+			if (time::is_night())
 			{
-				gpio::line_value_pair(pins::IRRIGATION_PUMP_1, t % 4 == 0),
-				gpio::line_value_pair(pins::IRRIGATION_PUMP_2, t % 4 == 1),
-				gpio::line_value_pair(pins::FAN_1_RELAY, t % 4 == 2),
-				gpio::line_value_pair(pins::FAN_2_RELAY, t % 4 == 3)
-			};
+				pump_state = toggle_irrigation(irrigation_pumps, false);
+				duty_percent = adjust_fans(fan_relays, fan_pwm, 0.0f);
+			}
+			else
+			{
+				pump_state = toggle_irrigation(irrigation_pumps, t % 30 == 0);
+				duty_percent = adjust_fans(fan_relays, fan_pwm, environment_celcius);
+			}
 
-			output_lines.write_values(output_data);
-
-			float duty_percent = t % 100;
-
-			fan_pwm.set_duty_percent(duty_percent);
-
-			now = std::chrono::system_clock::now();
+			auto now = std::chrono::system_clock::now();
 
 			csv.append_row(
 				time::to_string(now),
 				water_level_sensor_states[0].load() ? "High" : "Low",
 				water_level_sensor_states[1].load() ? "High" : "Low",
-				"Off",
-				"Off",
-				read_temperature(ds18b20),
-				"On",
-				"On",
+				pump_state ? "On" : "Off",
+				pump_state ? "On" : "Off",
+				environment_celcius,
+				duty_percent > 0.0f ? "On" : "Off",
+				duty_percent > 0.0f ? "On" : "Off",
 				duty_percent,
 				fan_rpms[0].load(),
 				fan_rpms[1].load(),
 				read_temperature(thermal_zone0));
+
+			sleep_until_next_even_minute();
 		}
 	}
 }
