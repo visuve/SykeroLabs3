@@ -69,10 +69,10 @@ namespace sl::time
 	}
 
 	timer::timer(
-		callback callback,
-		void* context,
+		std::function<void()> callback,
 		const std::chrono::system_clock::time_point& start_time,
-		std::chrono::seconds interval)
+		std::chrono::seconds interval) :
+		_callback(callback)
 	{
 		const auto now = std::chrono::system_clock::now();
 
@@ -84,8 +84,8 @@ namespace sl::time
 		mem::clear(_event);
 
 		_event.sigev_notify = SIGEV_THREAD;
-		_event.sigev_value.sival_ptr = context;
-		_event.sigev_notify_function = callback;
+		_event.sigev_value.sival_ptr = this;
+		_event.sigev_notify_function = notify_function;
 		_event.sigev_notify_attributes = nullptr;
 
 		if (timer_create(CLOCK_REALTIME, &_event, &_identifier) < 0)
@@ -144,6 +144,18 @@ namespace sl::time
 		if (timer_delete(_identifier) < 0)
 		{
 			throw std::system_error(errno, std::system_category(), "timer_delete");
+		}
+	}
+
+	void timer::notify_function(sigval sv)
+	{
+		auto self = reinterpret_cast<timer*>(sv.sival_ptr);
+
+		assert(self);
+
+		if (self->_callback)
+		{
+			self->_callback();
 		}
 	}
 }

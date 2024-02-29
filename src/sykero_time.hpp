@@ -48,11 +48,8 @@ namespace sl::time
 	class timer
 	{
 	public:
-		using callback = void (*)(sigval);
-
 		timer(
-			callback callback,
-			void* context,
+			std::function<void()> callback,
 			const std::chrono::system_clock::time_point& start_time,
 			std::chrono::seconds interval = std::chrono::seconds(0));
 
@@ -62,6 +59,9 @@ namespace sl::time
 		void stop();
 
 	private:
+		static void notify_function(sigval);
+
+		std::function<void()> _callback;
 		timer_t _identifier = nullptr;
 		sigevent _event;
 		itimerspec _spec;

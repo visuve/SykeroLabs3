@@ -13,12 +13,12 @@ namespace sl::csv
 			io::file_descriptor(path, O_WRONLY | O_CREAT | O_APPEND),
 			_header(header)
 		{
-			init(path);
+			initialize(path);
 		}
 
 		SL_NON_COPYABLE(file);
 
-		void init(const std::filesystem::path& path)
+		void initialize(const std::filesystem::path& path)
 		{
 			std::lock_guard<std::mutex> lock(_mutex);
 
