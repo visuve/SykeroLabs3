@@ -44,4 +44,26 @@ namespace sl::time
 		// Cast back to the accuracy the request was made
 		return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(nanos + secs);
 	}
+
+	class timer
+	{
+	public:
+		using callback = void (*)(sigval);
+
+		timer(
+			callback callback,
+			void* context,
+			const std::chrono::system_clock::time_point& start_time,
+			std::chrono::seconds interval = std::chrono::seconds(0));
+
+		~timer();
+
+		void start();
+		void stop();
+
+	private:
+		timer_t _identifier = nullptr;
+		sigevent _event;
+		itimerspec _spec;
+	};
 }

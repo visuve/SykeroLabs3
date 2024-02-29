@@ -267,6 +267,17 @@ namespace sl
 #endif
 	}
 
+	void rotate_csv(sigval sv)
+	{
+		auto csv = reinterpret_cast<csv::file<12u>*>(sv.sival_ptr);
+
+		const std::filesystem::path path = csv_file_path();
+
+		csv->initialize(path);
+
+		log_info("CSV %s rotated", path.c_str());
+	}
+
 	void run()
 	{
 		csv::file<12u> csv(csv_file_path(),
@@ -284,6 +295,14 @@ namespace sl
 			"Fan 2 RPM",
 			"CPU Temperature" 
 		});
+
+		constexpr std::chrono::hours time_zone(-2); // TODO: fix this with C++20
+		auto now = std::chrono::system_clock::now();
+		auto soon = std::chrono::ceil<std::chrono::days>(now) + time_zone;
+
+		time::timer csv_rotate_timer(rotate_csv, &csv, soon, std::chrono::seconds(5));
+
+		csv_rotate_timer.start();
 
 		const std::set<uint32_t> water_level_sensor_pins =
 		{
