@@ -349,10 +349,8 @@ namespace sl
 				duty_percent = adjust_fans(fan_relays, fan_pwm, environment_celcius);
 			}
 
-			auto now = std::chrono::system_clock::now();
-
 			csv.append_row(
-				time::to_string(now),
+				time::datetime_string(),
 				water_level_sensor_states[0].load() ? "High" : "Low",
 				water_level_sensor_states[1].load() ? "High" : "Low",
 				pump_state ? "On" : "Off",

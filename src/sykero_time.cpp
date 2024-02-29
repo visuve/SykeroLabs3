@@ -34,19 +34,36 @@ namespace sl::time
 		return tm.tm_hour >= 22 || tm.tm_hour <= 8;
 	}
 
-	std::string to_string(const std::chrono::system_clock::time_point& time_point)
+	template <size_t FS, size_t ES>
+	std::string to_string(
+		const std::chrono::system_clock::time_point& time_point,
+		const char(&format)[FS],
+		const char(&)[ES])
 	{
 		std::tm tm = local_time(time_point);
 
-		constexpr size_t time_stamp_size = sizeof("2024-02-28T16:45:18");
+		char time_stamp[ES];
 
-		char time_stamp[time_stamp_size];
-
-		if (std::strftime(time_stamp, time_stamp_size, "%FT%T", &tm) != time_stamp_size - 1)
+		if (std::strftime(time_stamp, ES, format, &tm) != ES - 1)
 		{
 			throw std::runtime_error("std::strftime failed");
 		}
 
-		return { time_stamp, time_stamp_size - 1 };
+		return { time_stamp, ES - 1 };
+	}
+
+	std::string time_string(const std::chrono::system_clock::time_point& time_point)
+	{
+		return to_string(time_point, "%T", "16:45:18");
+	}
+
+	std::string date_string(const std::chrono::system_clock::time_point& time_point)
+	{
+		return to_string(time_point, "%F", "2024-02-28");
+	}
+
+	std::string datetime_string(const std::chrono::system_clock::time_point& time_point)
+	{
+		return to_string(time_point, "%FT%T", "2024-02-28T16:45:18");
 	}
 }

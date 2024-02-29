@@ -6,7 +6,9 @@ namespace sl::time
 
 	bool is_night(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
 
-	std::string to_string(const std::chrono::system_clock::time_point& time_point);
+	std::string time_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
+	std::string date_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
+	std::string datetime_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
 
 	template<typename Rep, typename Period>
 	std::chrono::duration<Rep, Period> nanosleep(const std::chrono::duration<Rep, Period>& time)
