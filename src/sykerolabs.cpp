@@ -168,8 +168,8 @@ namespace sl
 
 		std::array<gpio::line_value_pair, 2> states =
 		{
-			gpio::line_value_pair(pins::FAN_1_RELAY, temperature > MIN_TEMPERATURE),
-			gpio::line_value_pair(pins::FAN_2_RELAY, temperature > MIN_TEMPERATURE),
+			gpio::line_value_pair(pins::FAN_1_RELAY, !(temperature > MIN_TEMPERATURE)),
+			gpio::line_value_pair(pins::FAN_2_RELAY, !(temperature > MIN_TEMPERATURE)),
 		};
 
 		float duty_percent;
@@ -291,15 +291,15 @@ namespace sl
 
 			csv.initialize(path);
 
-			log_info("CSV %s rotated", path.c_str());
+			log_info("csv file rotated to %s", path.c_str());
 		};
 
-		constexpr std::chrono::hours time_zone(-2); // TODO: fix this with C++20
 		auto now = std::chrono::system_clock::now();
-		auto midnight = std::chrono::ceil<std::chrono::days>(now) + time_zone;
-		auto interval = std::chrono::days(1);
+		std::chrono::nanoseconds nanos_to_midnight = now - std::chrono::floor<std::chrono::days>(now);
+		std::chrono::hh_mm_ss<std::chrono::nanoseconds> first_start(nanos_to_midnight);
+		constexpr std::chrono::days interval(1);
 
-		time::timer csv_rotate_timer(rotate_csv, midnight, interval);
+		time::timer csv_rotate_timer(rotate_csv, first_start, interval);
 
 		csv_rotate_timer.start();
 
@@ -370,6 +370,7 @@ namespace sl
 		for (int minute = time::local_time().tm_min; !signaled; ++minute)
 		{
 			float environment_celcius = read_temperature(ds18b20);
+			float cpu_celcius = read_temperature(thermal_zone0);
 			float duty_percent;
 			bool pump_state;
 
@@ -397,7 +398,7 @@ namespace sl
 				duty_percent,
 				fan_rpms[0].load(),
 				fan_rpms[1].load(),
-				read_temperature(thermal_zone0));
+				cpu_celcius);
 
 			sleep_until_next_even_minute();
 		}

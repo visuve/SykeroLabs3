@@ -16,8 +16,7 @@ namespace sl::pwm
 		{
 			io::file_descriptor export_file(path / "export", O_WRONLY);
 			export_file.write_text(std::to_string(line_number));
-			export_file.fsync();
-			export_file.close();
+			export_file.close(true);
 
 			time::nanosleep(std::chrono::milliseconds(500));
 		}

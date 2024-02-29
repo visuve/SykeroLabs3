@@ -34,7 +34,7 @@ namespace sl::io
 
 	void file_descriptor::open(const std::filesystem::path& path, int flags)
 	{
-		file_descriptor::close();
+		file_descriptor::close(false);
 
 		if ((flags & O_CREAT) == O_CREAT)
 		{

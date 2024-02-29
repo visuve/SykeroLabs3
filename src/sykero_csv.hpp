@@ -10,7 +10,7 @@ namespace sl::csv
 
 	public:
 		file(const std::filesystem::path& path, const std::array<std::string_view, Columns>& header) :
-			io::file_descriptor(path, O_WRONLY | O_CREAT | O_APPEND),
+			file_descriptor(),
 			_header(header)
 		{
 			initialize(path);
@@ -22,6 +22,8 @@ namespace sl::csv
 		{
 			std::lock_guard<std::mutex> lock(_mutex);
 
+			file_descriptor::open(path, O_WRONLY | O_CREAT | O_APPEND);
+
 			for (auto column_name : _header)
 			{
 				append_text(column_name);
@@ -32,7 +34,7 @@ namespace sl::csv
 			if (file_size > 0 && file_size < _row.size())
 			{
 				// Malformed header, reopen and truncate
-				file_descriptor::close();
+				file_descriptor::close(false);
 				file_descriptor::open(path, O_WRONLY | O_TRUNC);
 				file_size = 0;
 			}
@@ -58,7 +60,7 @@ namespace sl::csv
 			write_text(_row);
 			_row.clear();
 			_current_column = 0;
-			file_descriptor::fsync();
+			// file_descriptor::fsync(); TODO: fsync fails with stdout
 		}
 
 	private:

@@ -70,17 +70,10 @@ namespace sl::time
 
 	timer::timer(
 		std::function<void()> callback,
-		const std::chrono::system_clock::time_point& start_time,
-		std::chrono::seconds interval) :
+		const std::chrono::hh_mm_ss<std::chrono::nanoseconds>& start_time,
+		std::chrono::nanoseconds interval) :
 		_callback(callback)
 	{
-		const auto now = std::chrono::system_clock::now();
-
-		if (start_time < now)
-		{
-			throw std::invalid_argument("Cannot set an alarm in the past!");
-		}
-
 		mem::clear(_event);
 
 		_event.sigev_notify = SIGEV_THREAD;
@@ -93,19 +86,20 @@ namespace sl::time
 			throw std::system_error(errno, std::system_category(), "timer_create");
 		}
 
+		log_info("time::timer %p created.", _identifier);
+
 		mem::clear(_spec);
 
 		{
 			auto interval_secs = std::chrono::duration_cast<std::chrono::seconds>(interval);
-			auto interval_nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(interval - interval_secs);
+			auto interval_nanos = interval - interval_secs;
 
-			_spec.it_interval.tv_sec = interval_secs.count();
+			_spec.it_interval.tv_sec = interval.count();
 			_spec.it_interval.tv_nsec = interval_nanos.count();
 		}
 		{
-			auto diff = start_time - now;
-			auto start_secs = std::chrono::duration_cast<std::chrono::seconds>(diff);
-			auto start_nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(diff) - start_secs;
+			auto start_secs = std::chrono::duration_cast<std::chrono::seconds>(start_time.to_duration());
+			auto start_nanos = start_time.to_duration() - start_secs;
 
 			_spec.it_value.tv_sec = start_secs.count();
 			_spec.it_value.tv_nsec = start_nanos.count();
@@ -121,6 +115,8 @@ namespace sl::time
 				log_error("timer_delete(%p) failed. Errno %d", _identifier, errno);
 			}
 		}
+
+		log_info("time::timer %p destroyed.", _identifier);
 	}
 
 	void timer::start()

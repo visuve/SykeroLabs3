@@ -50,8 +50,8 @@ namespace sl::time
 	public:
 		timer(
 			std::function<void()> callback,
-			const std::chrono::system_clock::time_point& start_time,
-			std::chrono::seconds interval = std::chrono::seconds(0));
+			const std::chrono::hh_mm_ss<std::chrono::nanoseconds>& start_time,
+			std::chrono::nanoseconds interval = std::chrono::seconds(0));
 
 		~timer();
 
