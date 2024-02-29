@@ -21,7 +21,7 @@ namespace sl::log
 		const char(&format)[N],
 		Args... args)
 	{
-		char prefixed_format[N + 7] = "%s:%u: ";
+		char prefixed_format[N + 7] = { '%', 's', ':', '%', 'u', ':' }; // Make clang happy
 		mem::join(format, prefixed_format);
 
 		syslog(priority,
