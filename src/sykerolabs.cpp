@@ -139,7 +139,7 @@ namespace sl
 			throw std::runtime_error("Failed to read temperature");
 		}
 
-		file.lseek(0, SEEK_SET);
+		file.reposition(0);
 
 		std::string trimmed = buffer.substr(0, bytes_read - 1);
 
@@ -249,7 +249,7 @@ namespace sl
 		throw std::runtime_error("Temperature sensor not found");
 	}
 
-	std::filesystem::path csv_file_path()
+	std::filesystem::path csv_file_timestamped_path()
 	{
 #ifdef NDEBUG
 		const std::filesystem::path home(getenv("HOME"));
@@ -269,7 +269,7 @@ namespace sl
 
 	void run()
 	{
-		csv::file<12u> csv(csv_file_path(),
+		csv::file<12u> csv(csv_file_timestamped_path(),
 		{
 			"Time",
 			"Water Level Sensor 1",
@@ -287,11 +287,7 @@ namespace sl
 
 		auto rotate_csv = [&]()
 		{
-			const std::filesystem::path path = csv_file_path();
-
-			csv.initialize(path);
-
-			log_info("csv file rotated to %s", path.c_str());
+			csv.initialize(csv_file_timestamped_path());
 		};
 
 		auto now = std::chrono::system_clock::now();

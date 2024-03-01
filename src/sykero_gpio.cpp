@@ -9,12 +9,12 @@ namespace sl::gpio
 		file_descriptor(descriptor),
 		_offsets(offsets)
 	{
-		log_info("gpio::line_group %d opened.", _descriptor);
+		log_info("gpio::line_group %p opened.", this);
 	}
 
 	line_group::~line_group()
 	{
-		log_info("gpio::line_group %d closed.", _descriptor);
+		log_info("gpio::line_group %p closed.", this);
 	}
 
 	void line_group::read_values(std::span<line_value_pair> data) const
@@ -92,12 +92,12 @@ namespace sl::gpio
 	chip::chip(const std::filesystem::path& path) :
 		file_descriptor(path)
 	{
-		log_info("gpio::chip %d opened. Path: %s", _descriptor, path.c_str());
+		log_info("gpio::chip %p opened. Path: %s", this, path.c_str());
 	}
 
 	chip::~chip()
 	{
-		log_info("gpio::chip %d closed.", _descriptor);
+		log_info("gpio::chip %p closed.", this);
 	}
 
 	gpio::line_group chip::line_group(

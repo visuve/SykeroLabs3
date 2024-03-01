@@ -11,12 +11,15 @@ namespace sl::io
 		if (_descriptor < 0)
 		{
 			// I do now know if errno is set
-			throw std::invalid_argument("Invalid descriptor");
+			throw std::invalid_argument("invalid descriptor");
 		}
+
+		_type = file_descriptor::fstat().st_rdev;
 	}
 
 	file_descriptor::file_descriptor(const std::filesystem::path& path, int flags) :
-		_descriptor(0)
+		_descriptor(0),
+		_type(0)
 	{
 		file_descriptor::open(path, flags);
 	}
@@ -25,6 +28,11 @@ namespace sl::io
 	{
 		if (_descriptor > 0)
 		{
+			if (S_ISREG(_type) && ::fsync(_descriptor) < 0)
+			{
+				log_error("fsync(%d) failed. Errno %d", _descriptor, errno);
+			}
+
 			if (::close(_descriptor) < 0)
 			{
 				log_error("close(%d) failed. Errno %d", _descriptor, errno);
@@ -34,7 +42,7 @@ namespace sl::io
 
 	void file_descriptor::open(const std::filesystem::path& path, int flags)
 	{
-		file_descriptor::close(false);
+		file_descriptor::close();
 
 		if ((flags & O_CREAT) == O_CREAT)
 		{
@@ -50,28 +58,8 @@ namespace sl::io
 		{
 			throw std::system_error(errno, std::system_category(), path.c_str());
 		}
-	}
 
-	void file_descriptor::close(bool sync)
-	{
-		if (_descriptor <= 0)
-		{
-			return;
-		}
-
-		if (sync)
-		{
-			file_descriptor::fsync();
-		}
-
-		int result = ::close(_descriptor);
-
-		_descriptor = 0;
-
-		if (result < 0)
-		{
-			throw std::system_error(errno, std::system_category(), "close");
-		}
+		_type = file_descriptor::fstat().st_rdev;
 	}
 
 	size_t file_descriptor::read(void* data, size_t size) const
@@ -111,25 +99,18 @@ namespace sl::io
 		return file_descriptor::write(text.data(), text.size());
 	}
 
-	void file_descriptor::fsync() const
-	{
-		if (::fsync(_descriptor) < 0)
-		{
-			throw std::system_error(errno, std::system_category(), "fsync");
-		}
-	}
 
 	size_t file_descriptor::file_size() const
 	{
-		struct stat buffer;
-		mem::clear(buffer);
+		return file_descriptor::fstat().st_size;
+	}
 
-		if (::fstat(_descriptor, &buffer) < 0)
+	void file_descriptor::reposition(off_t offset) const
+	{
+		if (file_descriptor::lseek(offset, SEEK_SET) != offset)
 		{
-			throw std::system_error(errno, std::system_category(), "fstat");
+			throw std::runtime_error("failed to reposition");
 		}
-
-		return buffer.st_size;
 	}
 
 	off_t file_descriptor::lseek(off_t offset, int whence) const
@@ -142,5 +123,50 @@ namespace sl::io
 		}
 
 		return result;
+	}
+
+	struct stat file_descriptor::fstat() const
+	{
+		struct stat buffer;
+		mem::clear(buffer);
+
+		if (::fstat(_descriptor, &buffer) < 0)
+		{
+			throw std::system_error(errno, std::system_category(), "fstat");
+		}
+
+		return buffer;
+	}
+
+	void file_descriptor::fsync() const
+	{
+		if (!S_ISREG(_type))
+		{
+			return;
+		}
+
+		if (::fsync(_descriptor) < 0)
+		{
+			throw std::system_error(errno, std::system_category(), "fsync");
+		}
+	}
+
+	void file_descriptor::close()
+	{
+		if (_descriptor <= 0)
+		{
+			return;
+		}
+
+		file_descriptor::fsync();
+
+		int result = ::close(_descriptor);
+
+		_descriptor = 0;
+
+		if (result < 0)
+		{
+			throw std::system_error(errno, std::system_category(), "close");
+		}
 	}
 }

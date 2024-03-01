@@ -34,7 +34,6 @@ namespace sl::csv
 			if (file_size > 0 && file_size < _row.size())
 			{
 				// Malformed header, reopen and truncate
-				file_descriptor::close(false);
 				file_descriptor::open(path, O_WRONLY | O_TRUNC);
 				file_size = 0;
 			}
@@ -47,12 +46,14 @@ namespace sl::csv
 
 			_row.clear();
 			_current_column = 0;
+
+			log_debug("csv %s initialized.", path.c_str());
 		}
 
 		template<typename... Args>
 		void append_row(Args... args)
 		{
-			static_assert(sizeof...(Args) == Columns, "Too few arguments!");
+			static_assert(sizeof...(Args) == Columns, "too few arguments!");
 
 			std::lock_guard<std::mutex> lock(_mutex);
 
@@ -60,7 +61,7 @@ namespace sl::csv
 			write_text(_row);
 			_row.clear();
 			_current_column = 0;
-			// file_descriptor::fsync(); TODO: fsync fails with stdout
+			file_descriptor::fsync();
 		}
 
 	private:

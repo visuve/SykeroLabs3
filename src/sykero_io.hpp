@@ -14,7 +14,6 @@ namespace sl::io
 		virtual ~file_descriptor();
 
 		void open(const std::filesystem::path& path, int flags);
-		void close(bool sync);
 
 		size_t read(void* data, size_t size) const;
 		size_t read_text(std::string& text) const;
@@ -34,11 +33,13 @@ namespace sl::io
 			return file_descriptor::write(&t, sizeof(T));
 		}
 
-		void fsync() const;
 		size_t file_size() const;
-		off_t lseek(off_t offset, int whence) const;
+
+		void reposition(off_t offset) const;
 
 	protected:
+		off_t lseek(off_t offset, int whence) const;
+
 		template<typename... Args>
 		int ioctl(uint32_t request, Args... args) const
 		{
@@ -72,6 +73,14 @@ namespace sl::io
 			return result > 0;
 		}
 
+		struct stat fstat() const;
+
+		void fsync() const;
+
+	private:
 		int _descriptor = 0;
+		dev_t _type = 0;
+
+		void close();
 	};
 }
