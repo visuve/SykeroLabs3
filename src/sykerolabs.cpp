@@ -35,96 +35,118 @@ namespace sl
 	constexpr size_t fan_count = 2;
 	std::array<std::atomic<uint16_t>, fan_count> fan_rpms;
 
-	void measure_fans(const gpio::line_group& fans)
+	void monitor_water_level_sensors(std::stop_token stop_token, const gpio::line_group& water_level_sensors)
 	{
-		mem::clear(fan_rpms);
-
-		std::array<float, fan_count> revolutions;
-		mem::clear(revolutions);
-
-		std::array<float, fan_count> measure_start;
-		mem::clear(measure_start);
-
-		gpio_v2_line_event event;
-		mem::clear(event);
-
-		while (!signaled)
+		try
 		{
-			while (fans.poll(std::chrono::milliseconds(100)) && fans.read_event(event))
 			{
-				assert(event.id == GPIO_V2_LINE_EVENT_RISING_EDGE);
-
-				size_t fan_index = event.offset - pins::FAN_1_TACHOMETER;
-
-				assert(fan_index < fan_count);
-
-				if (event.line_seqno % 10 == 1)
+				std::array<gpio::line_value_pair, water_level_sensor_count> data =
 				{
-					revolutions[fan_index] = 1.0f;
-					measure_start[fan_index] = event.timestamp_ns;
-					continue;
-				}
+					gpio::line_value_pair(pins::WATER_LEVEL_SENSOR_1),
+					gpio::line_value_pair(pins::WATER_LEVEL_SENSOR_2)
+				};
 
-				if (event.line_seqno % 10 == 0)
-				{
-					float time_taken_ns = float(event.timestamp_ns) - measure_start[fan_index];
-					float revolutions_per_nanoseconds = revolutions[fan_index] / time_taken_ns;
+				water_level_sensors.read_values(data);
 
-					constexpr auto nanos_per_minute = static_cast<float>(
-						std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::minutes(1)).count());
-
-					float rpm = nanos_per_minute * revolutions_per_nanoseconds;
-
-					assert(rpm >= 0 && rpm < 0xFFFF);
-
-					fan_rpms[fan_index] = static_cast<uint16_t>(rpm);
-
-					continue;
-				}
-
-				++revolutions[fan_index];
+				water_level_sensor_states[0] = data[0].value;
+				water_level_sensor_states[1] = data[1].value;
 			}
 
-			mem::clear(fan_rpms);
+			gpio_v2_line_event event;
+			mem::clear(event);
+
+			while (!stop_token.stop_requested())
+			{
+				while (water_level_sensors.poll(std::chrono::milliseconds(100)) && water_level_sensors.read_event(event))
+				{
+					assert(event.id == GPIO_V2_LINE_EVENT_RISING_EDGE || event.id == GPIO_V2_LINE_EVENT_FALLING_EDGE);
+
+					size_t sensor_index = event.offset - pins::WATER_LEVEL_SENSOR_1;
+
+					assert(sensor_index < water_level_sensor_count);
+
+					auto& water_level_sensor_state = water_level_sensor_states[sensor_index];
+
+					water_level_sensor_state = event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? true : false;
+
+					log_notice("Water level sensor %zu changed to %s",
+						++sensor_index,
+						event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? "high" : "low");
+				}
+			}
+		}
+		catch (const std::system_error& e)
+		{
+			log_critical("std::system_error: %s", e.what());
+		}
+		catch (const std::exception& e)
+		{
+			log_critical("std::exception: %s", e.what());
 		}
 	}
 
-	void monitor_water_level_sensors(const gpio::line_group& water_level_sensors)
+	void measure_fans(std::stop_token stop_token, const gpio::line_group& fans)
 	{
+		try
 		{
-			std::array<gpio::line_value_pair, water_level_sensor_count> data =
+			mem::clear(fan_rpms);
+
+			std::array<float, fan_count> revolutions;
+			mem::clear(revolutions);
+
+			std::array<float, fan_count> measure_start;
+			mem::clear(measure_start);
+
+			gpio_v2_line_event event;
+			mem::clear(event);
+
+			while (!stop_token.stop_requested())
 			{
-				gpio::line_value_pair(pins::WATER_LEVEL_SENSOR_1),
-				gpio::line_value_pair(pins::WATER_LEVEL_SENSOR_2)
-			};
+				while (fans.poll(std::chrono::milliseconds(100)) && fans.read_event(event))
+				{
+					assert(event.id == GPIO_V2_LINE_EVENT_RISING_EDGE);
 
-			water_level_sensors.read_values(data);
+					size_t fan_index = event.offset - pins::FAN_1_TACHOMETER;
 
-			water_level_sensor_states[0] = data[0].value;
-			water_level_sensor_states[1] = data[1].value;
-		}
+					assert(fan_index < fan_count);
 
-		gpio_v2_line_event event;
-		mem::clear(event);
+					if (event.line_seqno % 10 == 1)
+					{
+						revolutions[fan_index] = 1.0f;
+						measure_start[fan_index] = event.timestamp_ns;
+						continue;
+					}
 
-		while (!signaled)
-		{
-			while (water_level_sensors.poll(std::chrono::milliseconds(100)) && water_level_sensors.read_event(event))
-			{
-				assert(event.id == GPIO_V2_LINE_EVENT_RISING_EDGE || event.id == GPIO_V2_LINE_EVENT_FALLING_EDGE);
+					if (event.line_seqno % 10 == 0)
+					{
+						float time_taken_ns = float(event.timestamp_ns) - measure_start[fan_index];
+						float revolutions_per_nanoseconds = revolutions[fan_index] / time_taken_ns;
 
-				size_t sensor_index = event.offset - pins::WATER_LEVEL_SENSOR_1;
+						constexpr auto nanos_per_minute = static_cast<float>(
+							std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::minutes(1)).count());
 
-				assert(sensor_index < water_level_sensor_count);
+						float rpm = nanos_per_minute * revolutions_per_nanoseconds;
 
-				auto& water_level_sensor_state = water_level_sensor_states[sensor_index];
+						assert(rpm >= 0 && rpm < 0xFFFF);
 
-				water_level_sensor_state = event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? true : false;
+						fan_rpms[fan_index] = static_cast<uint16_t>(rpm);
 
-				log_notice("Water level sensor %zu changed to %s",
-					++sensor_index,
-					event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? "high" : "low");
+						continue;
+					}
+
+					++revolutions[fan_index];
+				}
+
+				mem::clear(fan_rpms);
 			}
+		}
+		catch (const std::system_error& e)
+		{
+			log_critical("std::system_error: %s", e.what());
+		}
+		catch (const std::exception& e)
+		{
+			log_critical("std::exception: %s", e.what());
 		}
 	}
 
@@ -204,31 +226,8 @@ namespace sl
 
 	void signal_handler(int signal)
 	{
-		log_notice("Signaled: %d", signal);
+		log_notice("signaled: %d", signal);
 		signaled = signal;
-	}
-
-	template<typename Function, typename... Args>
-	int exception_handler(Function&& function, Args&&... args)
-	{
-		try
-		{
-			function(args...);
-		}
-		catch (const std::system_error& e)
-		{
-			log_critical("std::system_error: %s", e.what());
-
-			return e.code().value();
-		}
-		catch (const std::exception& e)
-		{
-			log_critical("std::exception: %s", e.what());
-
-			return -1;
-		}
-
-		return 0;
 	}
 
 	std::filesystem::path find_temperature_sensor_path()
@@ -351,15 +350,8 @@ namespace sl
 		io::file_descriptor thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
 		io::file_descriptor ds18b20(find_temperature_sensor_path());
 
-		std::jthread water_level_monitoring_thread([&]()
-		{
-			exception_handler(monitor_water_level_sensors, water_level_sensors);
-		});
-
-		std::jthread fan_measurement_thread([&]()
-		{
-			exception_handler(measure_fans, fan_tachometers);
-		});
+		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, std::cref(water_level_sensors));
+		std::jthread fan_measurement_thread(measure_fans, std::cref(fan_tachometers));
 
 		for (int minute = time::local_time().tm_min; !signaled; ++minute)
 		{
@@ -401,9 +393,26 @@ namespace sl
 
 int main(int, char** argv)
 {
-	sl::log::facility log_facility(1 << 3, argv[0]);
-
 	std::signal(SIGINT, sl::signal_handler);
 
-	return sl::exception_handler(sl::run);
+	sl::log::facility log_facility(1 << 3, argv[0]);
+
+	try
+	{
+		sl::run();
+	}
+	catch (const std::system_error& e)
+	{
+		log_critical("std::system_error: %s", e.what());
+
+		return e.code().value();
+	}
+	catch (const std::exception& e)
+	{
+		log_critical("std::exception: %s", e.what());
+
+		return -1;
+	}
+
+	return 0;
 }

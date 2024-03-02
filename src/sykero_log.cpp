@@ -10,7 +10,7 @@ namespace sl::log
 		assert(path);
 
 #ifdef NDEBUG
-		setlogmask(LOG_UPTO(LOG_WARNING));
+		setlogmask(LOG_UPTO(LOG_INFO));
 #else
 		setlogmask(LOG_UPTO(LOG_DEBUG));
 #endif
