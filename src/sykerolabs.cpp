@@ -219,12 +219,16 @@ namespace sl
 		return duty_percent;
 	}
 
-	void sleep_until_next_even_minute()
+	bool sleep_until_next_even_minute()
 	{
 		auto now = std::chrono::system_clock::now();
+		
 		auto next_full_minute = std::chrono::ceil<std::chrono::minutes>(now);
-		auto sleep_time = next_full_minute - now;
-		time::nanosleep(sleep_time);
+
+		std::chrono::nanoseconds sleep_time = next_full_minute - now;
+		std::chrono::nanoseconds time_left = time::nanosleep(sleep_time);
+
+		return !signaled && time_left.count() <= 0;
 	}
 
 	void signal_handler(int signal)
@@ -356,7 +360,7 @@ namespace sl
 		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, std::cref(water_level_sensors));
 		std::jthread fan_measurement_thread(measure_fans, std::cref(fan_tachometers));
 
-		for (int minute = time::local_time().tm_min; !signaled; ++minute)
+		for (int minute = time::local_time().tm_min; sleep_until_next_even_minute(); ++minute)
 		{
 			float environment_celcius = read_temperature(ds18b20);
 			float cpu_celcius = read_temperature(thermal_zone0);
@@ -388,8 +392,6 @@ namespace sl
 				fan_rpms[0].load(),
 				fan_rpms[1].load(),
 				cpu_celcius);
-
-			sleep_until_next_even_minute();
 		}
 	}
 }
