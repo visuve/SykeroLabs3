@@ -1,8 +1,8 @@
 # SykeröLabs3
 
 - Automating my [NFT (Nutrient Film Technique)](https://en.wikipedia.org/wiki/Nutrient_film_technique) driven greenhouse
-- 3rd iteration made with Raspberry Pi & C++
-	- See previous attempt on Raspberry Pico in https://github.com/visuve/SykeroLabs2 or with Arduino in https://github.com/visuve/SykeroLabs
+- 3rd iteration made with [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/) & [C++](https://en.wikipedia.org/wiki/C%2B%2B) on [Raspberry Pi OS](https://www.raspberrypi.com/software/)
+	- See previous (2nd version) on Raspberry Pico in https://github.com/visuve/SykeroLabs2 
 - See [Sykerolabs 3 wiki](https://github.com/visuve/SykeroLabs3/wiki) for technical illustrations and pictures i.e. the full documentation
 	- The documentation below is only for building, debugging etc. the application itself
 

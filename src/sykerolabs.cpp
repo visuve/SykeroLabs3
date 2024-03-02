@@ -297,8 +297,6 @@ namespace sl
 
 		time::timer csv_rotate_timer(rotate_csv, first_start, interval);
 
-		csv_rotate_timer.start();
-
 		const std::set<uint32_t> water_level_sensor_pins =
 		{
 			pins::WATER_LEVEL_SENSOR_1,

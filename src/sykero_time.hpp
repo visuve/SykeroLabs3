@@ -10,21 +10,32 @@ namespace sl::time
 	std::string date_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
 	std::string datetime_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
 
-	template<typename Rep, typename Period>
-	std::chrono::duration<Rep, Period> nanosleep(const std::chrono::duration<Rep, Period>& time)
+	template <typename Rep, typename Period>
+	constexpr timespec duration_to_timespec(std::chrono::duration<Rep, Period> duration)
 	{
-		auto secs = std::chrono::duration_cast<std::chrono::seconds>(time);
-		auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(time - secs);
+		auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration);
+		std::chrono::nanoseconds nanos = duration - seconds;
 
-		timespec requested;
-		requested.tv_sec = secs.count();
-		requested.tv_nsec = nanos.count();
+		return { seconds.count(), nanos.count() };
+	}
+
+	template <typename T>
+	constexpr T timespec_to_duration(const timespec& spec)
+	{
+		auto secs = std::chrono::seconds(spec.tv_sec);
+		auto nanos = std::chrono::nanoseconds(spec.tv_nsec);
+
+		return std::chrono::duration_cast<T>(nanos + secs);
+	}
+
+	template<typename Rep, typename Period>
+	std::chrono::duration<Rep, Period> nanosleep(std::chrono::duration<Rep, Period> duration)
+	{
+		timespec requested = duration_to_timespec(duration);
 
 		assert(requested.tv_nsec >= 0 && requested.tv_nsec <= 999999999);
 
-		timespec remaining;
-		remaining.tv_sec = 0;
-		remaining.tv_nsec = 0;
+		timespec remaining = { 0, 0 };
 
 		int result = ::nanosleep(&requested, &remaining);
 
@@ -38,11 +49,7 @@ namespace sl::time
 			}
 		}
 
-		secs = std::chrono::seconds(remaining.tv_sec);
-		nanos = std::chrono::nanoseconds(remaining.tv_nsec);
-
-		// Cast back to the accuracy the request was made
-		return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(nanos + secs);
+		return timespec_to_duration<std::chrono::duration<Rep, Period>>(remaining);
 	}
 
 	class timer
@@ -51,14 +58,16 @@ namespace sl::time
 		timer(
 			std::function<void()> callback,
 			const std::chrono::hh_mm_ss<std::chrono::nanoseconds>& start_time,
-			std::chrono::nanoseconds interval = std::chrono::seconds(0));
+			std::chrono::nanoseconds interval = std::chrono::nanoseconds(0));
 
 		~timer();
 
-		void start();
-		void stop();
-
 	private:
+		void create();
+		void start(
+			const std::chrono::hh_mm_ss<std::chrono::nanoseconds>& start_time,
+			std::chrono::nanoseconds interval);
+
 		static void notify_function(sigval);
 
 		std::function<void()> _callback;

@@ -74,36 +74,8 @@ namespace sl::time
 		std::chrono::nanoseconds interval) :
 		_callback(callback)
 	{
-		mem::clear(_event);
-
-		_event.sigev_notify = SIGEV_THREAD;
-		_event.sigev_value.sival_ptr = this;
-		_event.sigev_notify_function = notify_function;
-		_event.sigev_notify_attributes = nullptr;
-
-		if (timer_create(CLOCK_REALTIME, &_event, &_identifier) < 0)
-		{
-			throw std::system_error(errno, std::system_category(), "timer_create");
-		}
-
-		log_info("time::timer %p created.", _identifier);
-
-		mem::clear(_spec);
-
-		{
-			auto interval_secs = std::chrono::duration_cast<std::chrono::seconds>(interval);
-			auto interval_nanos = interval - interval_secs;
-
-			_spec.it_interval.tv_sec = interval.count();
-			_spec.it_interval.tv_nsec = interval_nanos.count();
-		}
-		{
-			auto start_secs = std::chrono::duration_cast<std::chrono::seconds>(start_time.to_duration());
-			auto start_nanos = start_time.to_duration() - start_secs;
-
-			_spec.it_value.tv_sec = start_secs.count();
-			_spec.it_value.tv_nsec = start_nanos.count();
-		}
+		create();
+		start(start_time, interval);
 	}
 
 	timer::~timer()
@@ -119,8 +91,30 @@ namespace sl::time
 		log_info("time::timer %p destroyed.", _identifier);
 	}
 
-	void timer::start()
+	void timer::create()
 	{
+		assert(_identifier == nullptr);
+
+		mem::clear(_event);
+
+		_event.sigev_notify = SIGEV_THREAD;
+		_event.sigev_value.sival_ptr = this;
+		_event.sigev_notify_function = notify_function;
+		_event.sigev_notify_attributes = nullptr;
+
+		if (timer_create(CLOCK_REALTIME, &_event, &_identifier) < 0)
+		{
+			throw std::system_error(errno, std::system_category(), "timer_create");
+		}
+
+		log_info("time::timer %p created.", _identifier);
+	}
+
+	void timer::start(const std::chrono::hh_mm_ss<std::chrono::nanoseconds>& start_time, std::chrono::nanoseconds interval)
+	{
+		_spec.it_interval = duration_to_timespec(interval);
+		_spec.it_value = duration_to_timespec(start_time.to_duration());
+
 		itimerspec old_spec;
 		mem::clear(old_spec);
 
@@ -133,14 +127,8 @@ namespace sl::time
 		assert(old_spec.it_interval.tv_nsec == 0);
 		assert(old_spec.it_value.tv_sec == 0);
 		assert(old_spec.it_value.tv_sec == 0);
-	}
-	
-	void timer::stop()
-	{
-		if (timer_delete(_identifier) < 0)
-		{
-			throw std::system_error(errno, std::system_category(), "timer_delete");
-		}
+
+		log_debug("time::timer %p started.", _identifier);
 	}
 
 	void timer::notify_function(sigval sv)
