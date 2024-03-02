@@ -5,8 +5,10 @@
 
 namespace sl::log
 {
-	facility::facility(int facility)
+	facility::facility(int facility, const char* path)
 	{
+		assert(path);
+
 #ifdef NDEBUG
 		setlogmask(LOG_UPTO(LOG_WARNING));
 #else
@@ -14,7 +16,7 @@ namespace sl::log
 #endif
 		openlog("sykerolabs", LOG_CONS | LOG_PID | LOG_NDELAY, facility);
 
-		syslog(LOG_INFO, "starting...");
+		syslog(LOG_INFO, "started from %s", path);
 	}
 
 	facility::~facility()

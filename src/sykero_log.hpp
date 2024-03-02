@@ -7,7 +7,7 @@ namespace sl::log
 	class facility final
 	{
 	public:
-		facility(int facility);
+		facility(int facility, const char* path);
 		~facility();
 		SL_NON_COPYABLE(facility);
 	};

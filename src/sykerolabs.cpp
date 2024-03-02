@@ -399,9 +399,9 @@ namespace sl
 	}
 }
 
-int main()
+int main(int, char** argv)
 {
-	sl::log::facility log_facility(1 << 3);
+	sl::log::facility log_facility(1 << 3, argv[0]);
 
 	std::signal(SIGINT, sl::signal_handler);
 
