@@ -73,6 +73,8 @@ namespace sl
 						++sensor_index,
 						event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? "high" : "low");
 				}
+
+				std::this_thread::yield();
 			}
 		}
 		catch (const std::system_error& e)
@@ -138,6 +140,7 @@ namespace sl
 				}
 
 				mem::clear(fan_rpms);
+				std::this_thread::yield();
 			}
 		}
 		catch (const std::system_error& e)
