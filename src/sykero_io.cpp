@@ -14,12 +14,12 @@ namespace sl::io
 			throw std::invalid_argument("invalid descriptor");
 		}
 
-		_type = file_descriptor::fstat().st_rdev;
+		_mode = file_descriptor::fstat().st_mode;
 	}
 
 	file_descriptor::file_descriptor(const std::filesystem::path& path, int flags) :
 		_descriptor(0),
-		_type(0)
+		_mode(0)
 	{
 		file_descriptor::open(path, flags);
 	}
@@ -28,7 +28,7 @@ namespace sl::io
 	{
 		if (_descriptor > 0)
 		{
-			if (S_ISREG(_type) && ::fsync(_descriptor) < 0)
+			if (S_ISREG(_mode) && ::fsync(_descriptor) < 0)
 			{
 				log_error("fsync(%d) failed. Errno %d", _descriptor, errno);
 			}
@@ -59,7 +59,7 @@ namespace sl::io
 			throw std::system_error(errno, std::system_category(), path.c_str());
 		}
 
-		_type = file_descriptor::fstat().st_rdev;
+		_mode = file_descriptor::fstat().st_mode;
 	}
 
 	size_t file_descriptor::read(void* data, size_t size) const
@@ -140,7 +140,7 @@ namespace sl::io
 
 	void file_descriptor::fsync() const
 	{
-		if (!S_ISREG(_type))
+		if (!S_ISREG(_mode))
 		{
 			return;
 		}

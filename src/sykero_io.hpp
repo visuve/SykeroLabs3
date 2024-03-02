@@ -79,7 +79,7 @@ namespace sl::io
 
 	private:
 		int _descriptor = 0;
-		dev_t _type = 0;
+		__mode_t _mode = 0;
 
 		void close();
 	};
