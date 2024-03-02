@@ -26,7 +26,7 @@ namespace sl::csv
 
 			for (auto column_name : _header)
 			{
-				append_text(column_name);
+				append_value(column_name);
 			}
 
 			size_t file_size = file_descriptor::file_size();
@@ -51,7 +51,7 @@ namespace sl::csv
 		}
 
 		template<typename... Args>
-		void append_row(Args... args)
+		void append_row(Args&&... args)
 		{
 			static_assert(sizeof...(Args) == Columns, "too few arguments!");
 
@@ -65,9 +65,18 @@ namespace sl::csv
 		}
 
 	private:
-		void append_text(std::string_view text)
+
+		template <typename T>
+		void append_value(T&& value)
 		{
-			_row += text;
+			if constexpr (std::is_arithmetic_v<std::remove_reference_t<T>>)
+			{
+				_row += std::to_string(value);
+			}
+			else
+			{
+				_row += value;
+			}
 
 			if (++_current_column < Columns)
 			{
@@ -76,19 +85,6 @@ namespace sl::csv
 			else
 			{
 				_row += "\r\n";
-			}
-		}
-
-		template <typename T>
-		void append_value(T t)
-		{
-			if constexpr (std::is_arithmetic_v<T>)
-			{
-				append_text(std::to_string(t));
-			}
-			else
-			{
-				append_text(t);
 			}
 		}
 
