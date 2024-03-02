@@ -399,6 +399,7 @@ namespace sl
 int main(int, char** argv)
 {
 	std::signal(SIGINT, sl::signal_handler);
+	std::signal(SIGTERM, sl::signal_handler);
 
 	sl::log::facility log_facility(1 << 3, argv[0]);
 
