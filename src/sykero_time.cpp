@@ -35,6 +35,12 @@ namespace sl::time
 		return tm.tm_hour >= 22 || tm.tm_hour <= 8;
 	}
 
+	std::chrono::hh_mm_ss<std::chrono::nanoseconds> time_to_midnight(const std::chrono::system_clock::time_point& time_point)
+	{
+		std::chrono::nanoseconds nanos_to_midnight = time_point - std::chrono::floor<std::chrono::days>(time_point);
+		return std::chrono::hh_mm_ss<std::chrono::nanoseconds>(nanos_to_midnight);
+	}
+
 	template <size_t FS, size_t ES>
 	std::string to_string(
 		const std::chrono::system_clock::time_point& time_point,

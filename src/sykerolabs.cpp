@@ -291,16 +291,13 @@ namespace sl
 			"CPU Temperature" 
 		});
 
-		auto rotate_csv = [&]()
+		const auto rotate_csv = [&]()
 		{
 			csv.initialize(csv_file_timestamped_path());
 		};
 
-		auto now = std::chrono::system_clock::now();
-		std::chrono::nanoseconds nanos_to_midnight = now - std::chrono::floor<std::chrono::days>(now);
-		std::chrono::hh_mm_ss<std::chrono::nanoseconds> first_start(nanos_to_midnight);
+		const std::chrono::hh_mm_ss first_start = time::time_to_midnight();
 		constexpr std::chrono::days interval(1);
-
 		time::timer csv_rotate_timer(rotate_csv, first_start, interval);
 
 		const std::set<uint32_t> water_level_sensor_pins =
