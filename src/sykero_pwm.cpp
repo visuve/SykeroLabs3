@@ -57,9 +57,9 @@ namespace sl::pwm
 			throw std::invalid_argument("Percentage must be between 0 and 100!");
 		}
 
-		if (_period_ns < 0)
+		if (_period_ns <= 0)
 		{
-			throw std::logic_error("Set frequency first!");
+			throw std::logic_error("Set the frequency first!");
 		}
 
 		std::string duty_cycle = std::to_string(int64_t(_period_ns * (percent / 100.0f)));

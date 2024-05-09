@@ -9,7 +9,7 @@
 
 namespace sl
 {
-	// See https://github.com/visuve/SykeroLabs3/wiki for more details
+	// See https://github.com/visuve/SykeroLabs3/wiki/Pin-configuration for more details
 	namespace pins
 	{
 		enum : uint8_t
@@ -19,11 +19,10 @@ namespace sl
 			WATER_LEVEL_SENSOR_2 = 6,
 			IRRIGATION_PUMP_1 = 13,
 			IRRIGATION_PUMP_2 = 16,
-			FAN_SPEED_SIGNAL = 12, // I use one for both
 			FAN_1_RELAY = 19,
 			FAN_2_RELAY = 20,
-			FAN_1_TACHOMETER = 23,
-			FAN_2_TACHOMETER = 24
+			FAN_1_TACHOMETER = 22,
+			FAN_2_TACHOMETER = 23
 		};
 	}
 
@@ -187,30 +186,30 @@ namespace sl
 
 	float adjust_fans(const gpio::line_group& fan_relays, pwm::chip& pwm, float temperature)
 	{
-		constexpr float MIN_TEMPERATURE = 20.0f;
-		constexpr float MAX_TEMPERATURE = 40.0f;
-		constexpr float STEP = 100.0f / (MAX_TEMPERATURE - MIN_TEMPERATURE);
+		constexpr float min_temperature = 20.0f;
+		constexpr float max_temperature = 40.0f;
+		constexpr float temperature_step = 100.0f / (max_temperature - min_temperature);
 
 		std::array<gpio::line_value_pair, 2> states =
 		{
-			gpio::line_value_pair(pins::FAN_1_RELAY, !(temperature > MIN_TEMPERATURE)),
-			gpio::line_value_pair(pins::FAN_2_RELAY, !(temperature > MIN_TEMPERATURE)),
+			gpio::line_value_pair(pins::FAN_1_RELAY, !(temperature > min_temperature)),
+			gpio::line_value_pair(pins::FAN_2_RELAY, !(temperature > min_temperature)),
 		};
 
 		float duty_percent;
 
-		if (temperature <= MIN_TEMPERATURE)
+		if (temperature <= min_temperature)
 		{
 			duty_percent = 0.0f;
 
 		}
-		else if (temperature >= MAX_TEMPERATURE)
+		else if (temperature >= max_temperature)
 		{
 			duty_percent = 100.0f;
 		}
 		else
 		{
-			duty_percent = (temperature - MIN_TEMPERATURE) * STEP;
+			duty_percent = (temperature - min_temperature) * temperature_step;
 		}
 
 		pwm.set_duty_percent(duty_percent);
