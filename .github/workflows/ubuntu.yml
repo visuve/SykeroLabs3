@@ -1,0 +1,31 @@
+name: Ubuntu CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Prerequisites
+      run: |
+        sudo apt update
+        sudo apt install cppcheck clang-18 g++14 cmake ninja-build
+
+    - name: Static analysis
+      run: |
+        cppcheck --project=sykerolabs.cppcheck --platform=unix64 --error-exitcode=1 --enable=all
+
+    - name: Build GCC
+      run: |
+        mkdir -p out/gcc
+        cd out/gcc
+        cmake -G Ninja -DCMAKE_C_COMPILER=/usr/bin/gcc-14 -DCMAKE_CXX_COMPILER=/usr/bin/g++-14 ../..
+        ninja
+
+    - name: Build Clang
+      run: |
+        mkdir -p out/clang
+        cd out/clang
+        cmake -G Ninja -DCMAKE_C_COMPILER=/usr/bin/clang-18 -DCMAKE_CXX_COMPILER=/usr/bin/clang++-18 ../..
+        ninja
