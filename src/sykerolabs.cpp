@@ -26,6 +26,22 @@ namespace sl
 		};
 	}
 
+	namespace paths
+	{
+#ifdef SYKEROLABS_RPI5
+		constexpr char PWM[] = "/sys/class/pwm/pwmchip2";
+		constexpr char GPIO[] = "/dev/gpiochip4";
+		constexpr char THERMAL[] = "/sys/class/thermal/thermal_zone0/temp";
+		constexpr char ONEWIRE[] = "/sys/bus/w1/devices/";
+#endif
+#ifdef SYKEROLABS_RPIZ2W
+		constexpr char PWM[] = "/sys/class/pwm/pwmchip0";
+		constexpr char GPIO[] = "/dev/gpiochip0";
+		constexpr char THERMAL[] = "/sys/class/thermal/thermal_zone0/temp";
+		constexpr char ONEWIRE[] = "/sys/bus/w1/devices/";
+#endif
+	}
+
 	std::atomic<int> signaled = 0;
 
 	constexpr size_t water_level_sensor_count = 2;
@@ -240,7 +256,7 @@ namespace sl
 	{
 		const std::regex regex("^28-[0-9a-f]{12}$");
 
-		for (const auto& entry : std::filesystem::directory_iterator("/sys/bus/w1/devices/"))
+		for (const auto& entry : std::filesystem::directory_iterator(sl::paths::ONEWIRE))
 		{
 			const std::filesystem::path path = entry.path();
 			const std::string filename = path.filename().string();
@@ -323,7 +339,7 @@ namespace sl
 			pins::FAN_2_TACHOMETER
 		};
 
-		gpio::chip chip("/dev/gpiochip4");
+		gpio::chip chip(sl::paths::GPIO);
 
 		// I do not have an oscilloscope so these values are arbitrary
 		constexpr auto water_level_sensor_debounce = std::chrono::milliseconds(10);
@@ -348,9 +364,9 @@ namespace sl
 		// Confusingly enough, the Rasperry Pi PWM 0 is in pwmchip2
 		// Fans use 25kHz https://www.mouser.com/pdfDocs/San_Ace_EPWMControlFunction.pdf
 		// https://noctua.at/pub/media/wysiwyg/Noctua_PWM_specifications_white_paper.pdf
-		pwm::chip fan_pwm("/sys/class/pwm/pwmchip2", 0, 25000);
+		pwm::chip fan_pwm(sl::paths::PWM, 0, 25000);
 
-		io::file_descriptor thermal_zone0("/sys/class/thermal/thermal_zone0/temp");
+		io::file_descriptor thermal_zone0(sl::paths::THERMAL);
 		io::file_descriptor ds18b20(find_temperature_sensor_path());
 
 		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, std::cref(water_level_sensors));
