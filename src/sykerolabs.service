@@ -1,0 +1,10 @@
+[Unit]
+Description=Sykerolabs Greenhouse Automation
+Documentation=https://github.com/visuve/SykeroLabs3
+
+[Service]
+Type=simple
+ExecStart=%h/sykerolabs/sykerolabs
+
+[Install]
+WantedBy=default.target

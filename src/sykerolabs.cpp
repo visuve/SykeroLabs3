@@ -387,7 +387,7 @@ namespace sl
 			}
 			else
 			{
-				pump_state = toggle_irrigation(irrigation_pumps, minute % 30 == 0);
+				pump_state = toggle_irrigation(irrigation_pumps, minute % 15 == 0);
 				duty_percent = adjust_fans(fan_relays, fan_pwm, environment_celcius);
 			}
 

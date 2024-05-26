@@ -23,4 +23,5 @@ endif()
 target_precompile_headers(sykerolabs PRIVATE "mega.pch")
 target_link_libraries(sykerolabs)
 
-install(TARGETS sykerolabs)
+install(TARGETS sykerolabs DESTINATION "~/sykerolabs")
+install(FILES sykerolabs.service DESTINATION "~/.config/systemd/user")
