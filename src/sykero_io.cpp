@@ -30,12 +30,12 @@ namespace sl::io
 		{
 			if (S_ISREG(_mode) && ::fsync(_descriptor) < 0)
 			{
-				log_error("fsync(%d) failed. Errno %d", _descriptor, errno);
+				log_error("fsync(%d) failed; errno %d.", _descriptor, errno);
 			}
 
 			if (::close(_descriptor) < 0)
 			{
-				log_error("close(%d) failed. Errno %d", _descriptor, errno);
+				log_error("close(%d) failed; errno %d.", _descriptor, errno);
 			}
 		}
 	}

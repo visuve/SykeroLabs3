@@ -43,7 +43,7 @@ namespace sl::pwm
 	{
 		if (frequency < 0)
 		{
-			throw std::invalid_argument("Frequency must be a positive floating point value!");
+			throw std::invalid_argument("frequency must be a positive floating point value");
 		}
 
 		_period_ns = (1.0f / frequency) * 1000000000.0f;
@@ -54,12 +54,12 @@ namespace sl::pwm
 	{
 		if (percent < 0.0f || percent > 100.0f)
 		{
-			throw std::invalid_argument("Percentage must be between 0 and 100!");
+			throw std::invalid_argument("percentage must be between 0 and 100");
 		}
 
 		if (_period_ns <= 0)
 		{
-			throw std::logic_error("Set the frequency first!");
+			throw std::logic_error("set the frequency first");
 		}
 
 		std::string duty_cycle = std::to_string(int64_t(_period_ns * (percent / 100.0f)));

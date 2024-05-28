@@ -14,7 +14,7 @@ namespace sl::time
 
 		if (!localtime_r(&tt, &tm))
 		{
-			throw std::runtime_error("std::localtime failed");
+			throw std::runtime_error("localtime_r");
 		}
 
 		assert(tm.tm_sec >= 0 && tm.tm_hour <= 60);
@@ -57,7 +57,7 @@ namespace sl::time
 
 		if (std::strftime(time_stamp, ES, format, &tm) != ES - 1)
 		{
-			throw std::runtime_error("std::strftime failed");
+			throw std::runtime_error("std::strftime");
 		}
 
 		return { time_stamp, ES - 1 };
@@ -85,7 +85,7 @@ namespace sl::time
 
 		if (size <= 0)
 		{
-			throw std::runtime_error("std::sprintf failed");
+			throw std::runtime_error("std::snprintf");
 		}
 
 		time_stamp.resize(static_cast<size_t>(size));
@@ -119,7 +119,7 @@ namespace sl::time
 		{
 			if (timer_delete(_identifier) < 0)
 			{
-				log_error("timer_delete(%p) failed. Errno %d", _identifier, errno);
+				log_error("timer_delete(%p) failed; errno %d.", _identifier, errno);
 			}
 		}
 

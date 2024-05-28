@@ -84,7 +84,7 @@ namespace sl
 
 					water_level_sensor_state = event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? true : false;
 
-					log_notice("Water level sensor %zu changed to %s",
+					log_notice("water level sensor %zu changed to %s.",
 						++sensor_index,
 						event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? "high" : "low");
 				}
@@ -176,7 +176,7 @@ namespace sl
 
 		if (!bytes_read)
 		{
-			throw std::runtime_error("Failed to read temperature");
+			throw std::runtime_error("failed to read temperature");
 		}
 
 		file.reposition(0);
@@ -248,7 +248,7 @@ namespace sl
 
 	void signal_handler(int signal)
 	{
-		log_notice("signaled: %d", signal);
+		log_notice("signaled: %d.", signal);
 		signaled = signal;
 	}
 
@@ -267,7 +267,7 @@ namespace sl
 			}
 		}
 
-		throw std::runtime_error("Temperature sensor not found");
+		throw std::runtime_error("temperature sensor not found");
 	}
 
 	std::filesystem::path csv_file_timestamped_path()
@@ -426,13 +426,13 @@ int main(int, char** argv)
 	}
 	catch (const std::system_error& e)
 	{
-		log_critical("std::system_error: %s", e.what());
+		log_critical("std::system_error: %s.", e.what());
 
 		return e.code().value();
 	}
 	catch (const std::exception& e)
 	{
-		log_critical("std::exception: %s", e.what());
+		log_critical("std::exception: %s.", e.what());
 
 		return -1;
 	}

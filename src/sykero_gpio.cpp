@@ -83,7 +83,7 @@ namespace sl::gpio
 
 		if (iter == _offsets.cend())
 		{
-			throw std::invalid_argument("Offset not found");
+			throw std::invalid_argument("offset not found");
 		}
 
 		return std::distance(_offsets.cbegin(), iter);
