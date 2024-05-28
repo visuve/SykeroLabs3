@@ -273,7 +273,7 @@ namespace sl
 	std::filesystem::path csv_file_timestamped_path()
 	{
 #ifndef NDEBUG
-		if (std::filesystem::exists("/dev/stdout"))
+		if (access("/dev/stdout", W_OK) == 0)
 		{
 			return "/dev/stdout";
 		}
