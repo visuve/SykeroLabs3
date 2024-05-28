@@ -272,7 +272,12 @@ namespace sl
 
 	std::filesystem::path csv_file_timestamped_path()
 	{
-#ifdef NDEBUG
+#ifndef NDEBUG
+		if (std::filesystem::exists("/dev/stdout"))
+		{
+			return "/dev/stdout";
+		}
+#endif
 		const std::filesystem::path home(getenv("HOME"));
 
 		auto sykerolabs = home / "sykerolabs";
@@ -283,9 +288,6 @@ namespace sl
 		}
 
 		return sykerolabs / (time::date_string() + ".csv");
-#else
-		return "/dev/stdout";
-#endif
 	}
 
 	void run()
@@ -314,6 +316,9 @@ namespace sl
 		const std::chrono::hh_mm_ss first_start = time::time_to_midnight();
 		constexpr std::chrono::days interval(1);
 		time::timer csv_rotate_timer(rotate_csv, first_start, interval);
+
+		const std::string ttm = time::time_string(first_start);
+		log_debug("time to midnight: %s.", ttm.c_str());
 
 		const std::set<uint32_t> water_level_sensor_pins =
 		{

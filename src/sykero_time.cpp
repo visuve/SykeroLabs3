@@ -37,7 +37,11 @@ namespace sl::time
 
 	std::chrono::hh_mm_ss<std::chrono::nanoseconds> time_to_midnight(const std::chrono::system_clock::time_point& time_point)
 	{
-		std::chrono::nanoseconds nanos_to_midnight = time_point - std::chrono::floor<std::chrono::days>(time_point);
+		std::chrono::nanoseconds nanos_to_midnight = std::chrono::ceil<std::chrono::days>(time_point) - time_point;
+
+		// TODO: use std::chrono::zoned_time when available
+		nanos_to_midnight -= std::chrono::seconds(local_time(time_point).tm_gmtoff);
+
 		return std::chrono::hh_mm_ss<std::chrono::nanoseconds>(nanos_to_midnight);
 	}
 
@@ -62,6 +66,31 @@ namespace sl::time
 	std::string time_string(const std::chrono::system_clock::time_point& time_point)
 	{
 		return to_string(time_point, "%T", "16:45:18");
+	}
+
+	std::string time_string(const std::chrono::hh_mm_ss<std::chrono::nanoseconds>& hh_mm_ss)
+	{
+		std::string time_stamp(0x40, '\0');
+		
+		// TODO: use std::format when available
+		int size = std::snprintf(
+			time_stamp.data(),
+			time_stamp.size(),
+			"%02ld:%02ld:%02ld",
+			hh_mm_ss.hours().count(),
+			hh_mm_ss.minutes().count(),
+			hh_mm_ss.seconds().count());
+
+		assert(size == 8);
+
+		if (size <= 0)
+		{
+			throw std::runtime_error("std::sprintf failed");
+		}
+
+		time_stamp.resize(static_cast<size_t>(size));
+
+		return time_stamp;
 	}
 
 	std::string date_string(const std::chrono::system_clock::time_point& time_point)
