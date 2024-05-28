@@ -37,10 +37,11 @@ namespace sl::time
 
 	std::chrono::hh_mm_ss<std::chrono::nanoseconds> time_to_midnight(const std::chrono::system_clock::time_point& time_point)
 	{
-		std::chrono::nanoseconds nanos_to_midnight = std::chrono::ceil<std::chrono::days>(time_point) - time_point;
-
 		// TODO: use std::chrono::zoned_time when available
-		nanos_to_midnight -= std::chrono::seconds(local_time(time_point).tm_gmtoff);
+		auto time_zone_adjusted = time_point + std::chrono::seconds(local_time(time_point).tm_gmtoff);
+
+		std::chrono::nanoseconds nanos_to_midnight =
+			std::chrono::ceil<std::chrono::days>(time_zone_adjusted) - time_zone_adjusted;
 
 		return std::chrono::hh_mm_ss<std::chrono::nanoseconds>(nanos_to_midnight);
 	}
@@ -149,6 +150,9 @@ namespace sl::time
 	{
 		_spec.it_interval = duration_to_timespec(interval);
 		_spec.it_value = duration_to_timespec(start_time.to_duration());
+
+		assert(_spec.it_interval.tv_nsec >= 0 && _spec.it_interval.tv_nsec <= 999999999);
+		assert(_spec.it_value.tv_nsec >= 0 && _spec.it_value.tv_nsec <= 999999999);
 
 		itimerspec old_spec;
 		mem::clear(old_spec);
