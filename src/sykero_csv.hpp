@@ -31,23 +31,22 @@ namespace sl::csv
 
 			size_t file_size = file_descriptor::file_size();
 
-			if (file_size > 0 && file_size < _row.size())
+			if (file_size == 0)
+			{
+				// An empty file, write the header
+				write_text(_row);
+			}
+			else if (file_size < _row.size())
 			{
 				// Malformed header, reopen and truncate
 				file_descriptor::open(path, O_WRONLY | O_TRUNC);
 				file_size = 0;
 			}
 
-			if (file_size == 0)
-			{
-				// An empty file, write the header
-				write_text(_row);
-			}
-
 			_row.clear();
 			_current_column = 0;
 
-			log_debug("csv %s initialized.", path.c_str());
+			log_info("%s opened.", path.c_str());
 		}
 
 		template<typename... Args>
