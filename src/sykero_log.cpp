@@ -17,6 +17,7 @@ namespace sl::log
 		openlog("sykerolabs", LOG_CONS | LOG_PID | LOG_NDELAY, facility);
 
 		syslog(LOG_INFO, "started from %s", path);
+		syslog(LOG_INFO, "build date: %s time: %s", __DATE__, __TIME__);
 	}
 
 	facility::~facility()
