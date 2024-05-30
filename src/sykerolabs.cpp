@@ -284,7 +284,7 @@ namespace sl
 	std::filesystem::path csv_file_timestamped_path()
 	{
 #ifndef NDEBUG
-		if (access("/dev/stdout", W_OK) == 0)
+		if (isatty(STDOUT_FILENO))
 		{
 			return "/dev/stdout";
 		}
