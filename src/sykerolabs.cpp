@@ -42,7 +42,7 @@ namespace sl
 #endif
 	}
 
-	std::atomic<int> signaled = 0;
+	std::stop_source common_stop_source;
 
 	constexpr size_t water_level_sensor_count = 2;
 	std::array<std::atomic<bool>, water_level_sensor_count> water_level_sensor_states;
@@ -50,10 +50,14 @@ namespace sl
 	constexpr size_t fan_count = 2;
 	std::array<std::atomic<uint16_t>, fan_count> fan_rpms;
 
-	void monitor_water_level_sensors(std::stop_token stop_token, const gpio::line_group& water_level_sensors)
+	void monitor_water_level_sensors(std::stop_source stop_source, const gpio::line_group& water_level_sensors)
 	{
+		log_debug("thread %d monitor_water_level_sensors started.", gettid());
+
 		try
 		{
+			std::stop_token stop_token = stop_source.get_token();
+
 			{
 				std::array<gpio::line_value_pair, water_level_sensor_count> data =
 				{
@@ -100,12 +104,18 @@ namespace sl
 		{
 			log_critical("std::exception: %s", e.what());
 		}
+
+		log_debug("thread %d monitor_water_level_sensors stopped.", gettid());
 	}
 
-	void measure_fans(std::stop_token stop_token, const gpio::line_group& fans)
+	void measure_fans(std::stop_source stop_source, const gpio::line_group& fans)
 	{
+		log_debug("thread %d measure_fans started.", gettid());
+
 		try
 		{
+			std::stop_token stop_token = stop_source.get_token();
+
 			mem::clear(fan_rpms);
 
 			std::array<float, fan_count> revolutions;
@@ -166,6 +176,8 @@ namespace sl
 		{
 			log_critical("std::exception: %s", e.what());
 		}
+
+		log_debug("thread %d measure_fans stopped.", gettid());
 	}
 
 	float read_temperature(const io::file_descriptor& file)
@@ -237,19 +249,18 @@ namespace sl
 	bool sleep_until_next_even_minute()
 	{
 		auto now = std::chrono::system_clock::now();
-		
 		auto next_full_minute = std::chrono::ceil<std::chrono::minutes>(now);
 
 		std::chrono::nanoseconds sleep_time = next_full_minute - now;
 		std::chrono::nanoseconds time_left = time::nanosleep(sleep_time);
 
-		return !signaled && time_left.count() <= 0;
+		return time_left.count() <= 0;
 	}
 
 	void signal_handler(int signal)
 	{
 		log_notice("signaled: %d.", signal);
-		signaled = signal;
+		common_stop_source.request_stop();
 	}
 
 	std::filesystem::path find_temperature_sensor_path()
@@ -314,11 +325,12 @@ namespace sl
 		};
 
 		const std::chrono::hh_mm_ss first_start = time::time_to_midnight();
+		{
+			const std::string ttm = time::time_string(first_start);
+			log_debug("time to midnight: %s.", ttm.c_str());
+		}
 		constexpr std::chrono::days interval(1);
 		time::timer csv_rotate_timer(rotate_csv, first_start, interval);
-
-		const std::string ttm = time::time_string(first_start);
-		log_debug("time to midnight: %s.", ttm.c_str());
 
 		const std::set<uint32_t> water_level_sensor_pins =
 		{
@@ -374,10 +386,14 @@ namespace sl
 		io::file_descriptor thermal_zone0(sl::paths::THERMAL);
 		io::file_descriptor ds18b20(find_temperature_sensor_path());
 
-		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, std::cref(water_level_sensors));
-		std::jthread fan_measurement_thread(measure_fans, std::cref(fan_tachometers));
+		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, common_stop_source, std::cref(water_level_sensors));
+		std::jthread fan_measurement_thread(measure_fans, common_stop_source, std::cref(fan_tachometers));
 
-		for (int minute = time::local_time().tm_min; sleep_until_next_even_minute(); ++minute)
+		std::stop_token stop_token = common_stop_source.get_token();
+
+		log_debug("main loop %d started.", gettid());
+
+		for (int minute = time::local_time().tm_min; !stop_token.stop_requested() && sleep_until_next_even_minute(); ++minute)
 		{
 			float environment_celcius = read_temperature(ds18b20);
 			float cpu_celcius = read_temperature(thermal_zone0);
@@ -410,6 +426,15 @@ namespace sl
 				fan_rpms[1].load(),
 				cpu_celcius);
 		}
+
+		// Turn off relays on exit
+		toggle_irrigation(irrigation_pumps, false);
+		adjust_fans(fan_relays, fan_pwm, 0.0f);
+
+		// If the fans are spinning, there should not be a reason to wait for the fans to spool down,
+		// because the fan rpm read function will block the jthread from exiting
+
+		log_debug("main loop %d stopped.", gettid());
 	}
 }
 
