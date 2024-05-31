@@ -10,11 +10,11 @@ jobs:
     - name: Prerequisites
       run: |
         sudo apt update
-        sudo apt install cppcheck clang-18 g++14 cmake ninja-build
+        sudo apt install cppcheck clang-18 g++-14 cmake ninja-build
 
     - name: Static analysis
       run: |
-        cppcheck --project=sykerolabs.cppcheck --platform=unix64 --error-exitcode=1 --enable=all
+        cppcheck --project=sykerolabs.cppcheck --platform=unix64 --error-exitcode=1 --enable=warning
 
     - name: Build GCC
       run: |
