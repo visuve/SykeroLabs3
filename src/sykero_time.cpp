@@ -64,15 +64,10 @@ namespace sl::time
 		return { time_stamp, ES - 1 };
 	}
 
-	std::string time_string(const std::chrono::system_clock::time_point& time_point)
-	{
-		return to_string(time_point, "%T", "16:45:18");
-	}
-
 	std::string time_string(const std::chrono::hh_mm_ss<std::chrono::nanoseconds>& hh_mm_ss)
 	{
 		std::string time_stamp(0x40, '\0');
-		
+
 		// TODO: use std::format when available
 		int size = std::snprintf(
 			time_stamp.data(),
@@ -92,6 +87,11 @@ namespace sl::time
 		time_stamp.resize(static_cast<size_t>(size));
 
 		return time_stamp;
+	}
+
+	std::string time_string(const std::chrono::system_clock::time_point& time_point)
+	{
+		return to_string(time_point, "%T", "16:45:18");
 	}
 
 	std::string date_string(const std::chrono::system_clock::time_point& time_point)

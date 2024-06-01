@@ -11,7 +11,7 @@ namespace sl::pwm
 			const std::filesystem::path& path,
 			uint8_t line_number,
 			float frequency,
-			float initial_percent = 0);
+			float initial_percent = 0.0f);
 		~chip();
 
 		SL_NON_COPYABLE(chip);

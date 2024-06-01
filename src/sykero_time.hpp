@@ -8,8 +8,8 @@ namespace sl::time
 
 	std::chrono::hh_mm_ss<std::chrono::nanoseconds> time_to_midnight(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
 
-	std::string time_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
 	std::string time_string(const std::chrono::hh_mm_ss<std::chrono::nanoseconds>& hh_mm_ss);
+	std::string time_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
 	std::string date_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
 	std::string datetime_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
 

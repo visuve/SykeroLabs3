@@ -40,7 +40,6 @@ namespace sl::csv
 			{
 				// Malformed header, reopen and truncate
 				file_descriptor::open(path, O_WRONLY | O_TRUNC);
-				file_size = 0;
 			}
 
 			_row.clear();

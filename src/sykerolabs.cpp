@@ -182,7 +182,7 @@ namespace sl
 
 	float read_temperature(const io::file_descriptor& file)
 	{
-		thread_local static std::string buffer(0x200, '\0');
+		thread_local static std::string buffer(0x100, '\0');
 
 		size_t bytes_read = file.read_text(buffer);
 
