@@ -5,9 +5,13 @@ namespace sl::mem
 	template <typename T>
 	constexpr void clear(T& x)
 	{
-		for (auto i = reinterpret_cast<uint8_t*>(&x); i < i + sizeof(T); ++i)
+		auto begin = reinterpret_cast<uint8_t*>(&x);
+		const auto end = begin + sizeof(T);
+
+		while (begin < end)
 		{
-			*i = 0;
+			*begin = 0;
+			++begin;
 		}
 	}
 
