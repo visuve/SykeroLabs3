@@ -16,7 +16,17 @@ namespace sl::io
 		void open(const std::filesystem::path& path, int flags);
 
 		size_t read(void* data, size_t size) const;
-		size_t read_text(std::string& text) const;
+
+		template <size_t N>
+		size_t read_text(char(&text)[N]) const
+		{
+			return read(text, N);
+		}
+
+		inline size_t read_text(std::string& text) const
+		{
+			return read(text.data(), text.size());
+		}
 
 		template <typename T>
 		bool read_value(T& t) const
@@ -25,7 +35,17 @@ namespace sl::io
 		}
 
 		void write(const void* data, size_t size) const;
-		void write_text(std::string_view text) const;
+		
+		template <size_t N>
+		void write_text(const char(&text)[N]) const
+		{
+			return write(text, N);
+		}
+
+		inline void write_text(const std::string& text) const
+		{
+			return write(text.data(), text.size());
+		}
 
 		template <typename T>
 		void write_value(const T& t) const

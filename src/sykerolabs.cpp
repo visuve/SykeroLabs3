@@ -14,11 +14,10 @@ namespace sl
 	{
 		enum : uint8_t
 		{
-			ENVIRONMENT_TEMPERATURE = 4,
 			WATER_LEVEL_SENSOR_1 = 5,
 			WATER_LEVEL_SENSOR_2 = 6,
-			IRRIGATION_PUMP_1 = 13,
-			IRRIGATION_PUMP_2 = 16,
+			PUMP_1_RELAY = 13,
+			PUMP_2_RELAY = 16,
 			FAN_1_RELAY = 19,
 			FAN_2_RELAY = 20,
 			FAN_1_TACHOMETER = 22,
@@ -28,17 +27,16 @@ namespace sl
 
 	namespace paths
 	{
+		const std::filesystem::path CPU_TEMPERATURE("/sys/class/thermal/thermal_zone0/temp");
+		const std::filesystem::path IIO_DEVICE0("/sys/bus/iio/devices/iio:device0");
+
 #ifdef SYKEROLABS_RPI5
-		constexpr char PWM[] = "/sys/class/pwm/pwmchip2";
-		constexpr char GPIO[] = "/dev/gpiochip4";
-		constexpr char THERMAL[] = "/sys/class/thermal/thermal_zone0/temp";
-		constexpr char ONEWIRE[] = "/sys/bus/w1/devices/";
+		const std::filesystem::path PWM_CHIP("/sys/class/pwm/pwmchip2");
+		const std::filesystem::path GPIO_CHIP("/dev/gpiochip4");
 #endif
 #ifdef SYKEROLABS_RPIZ2W
-		constexpr char PWM[] = "/sys/class/pwm/pwmchip0";
-		constexpr char GPIO[] = "/dev/gpiochip0";
-		constexpr char THERMAL[] = "/sys/class/thermal/thermal_zone0/temp";
-		constexpr char ONEWIRE[] = "/sys/bus/w1/devices/";
+		const std::filesystem::path PWM_CHIP("/sys/class/pwm/pwmchip0");
+		const std::filesystem::path GPIO_CHIP("/dev/gpiochip0");
 #endif
 	}
 
@@ -180,30 +178,45 @@ namespace sl
 		log_debug("thread %d measure_fans stopped.", gettid());
 	}
 
-	float read_temperature(const io::file_descriptor& file)
+	template <typename T>
+	T value_from_file(const io::file_descriptor& file)
 	{
-		thread_local static std::string buffer(0x100, '\0');
+		// The BME680 sensor seems to hang when there are too many
+		// consecutive calls in a short time frame
+		time::nanosleep(std::chrono::milliseconds(100));
+
+		char buffer[0x80];
 
 		size_t bytes_read = file.read_text(buffer);
 
 		if (!bytes_read)
 		{
-			throw std::runtime_error("failed to read temperature");
+			throw std::runtime_error("failed to read");
 		}
 
 		file.reposition(0);
 
-		std::string trimmed = buffer.substr(0, bytes_read - 1);
+		std::string trimmed(buffer, bytes_read - 1);
 
-		return std::stof(trimmed) / 1000.0f;
+		if constexpr (std::is_same_v<T, int>)
+		{
+			return std::stoi(trimmed);
+		}
+		
+		if constexpr (std::is_same_v<T, float>)
+		{
+			return std::stof(trimmed);
+		}
+
+		throw std::invalid_argument("unsupported type");
 	}
 
 	bool toggle_irrigation(const gpio::line_group& irrigation_pumps, bool toggle)
 	{
 		std::array<gpio::line_value_pair, 2> states =
 		{
-			gpio::line_value_pair(pins::IRRIGATION_PUMP_1, !toggle),
-			gpio::line_value_pair(pins::IRRIGATION_PUMP_2, !toggle),
+			gpio::line_value_pair(pins::PUMP_1_RELAY, !toggle),
+			gpio::line_value_pair(pins::PUMP_2_RELAY, !toggle),
 		};
 
 		irrigation_pumps.write_values(states);
@@ -263,35 +276,17 @@ namespace sl
 		common_stop_source.request_stop();
 	}
 
-	std::filesystem::path find_temperature_sensor_path()
-	{
-		const std::regex regex("^28-[0-9a-f]{12}$");
-
-		for (const auto& entry : std::filesystem::directory_iterator(sl::paths::ONEWIRE))
-		{
-			const std::filesystem::path path = entry.path();
-			const std::string filename = path.filename().string();
-
-			if (std::regex_search(filename, regex))
-			{
-				return path / "temperature";
-			}
-		}
-
-		throw std::runtime_error("temperature sensor not found");
-	}
-
 	std::filesystem::path csv_file_timestamped_path()
 	{
 #ifndef NDEBUG
-		if (isatty(STDOUT_FILENO))
+		if (isatty(STDOUT_FILENO) == 1)
 		{
 			return "/dev/stdout";
 		}
 #endif
 		const std::filesystem::path home(getenv("HOME"));
 
-		auto sykerolabs = home / "sykerolabs";
+		const auto sykerolabs = home / "sykerolabs";
 
 		if (!std::filesystem::exists(sykerolabs))
 		{
@@ -303,20 +298,23 @@ namespace sl
 
 	void run()
 	{
-		csv::file<12u> csv(csv_file_timestamped_path(),
+		csv::file<15u> csv(csv_file_timestamped_path(),
 		{
 			"Time",
+			"CPU Temperature",
+			"Air Temperature",
+			"Air Humidity",
+			"Air Pressure",
+			"Air Resistance",
 			"Water Level Sensor 1",
 			"Water Level Sensor 2",
 			"Pump 1 Relay",
 			"Pump 2 Relay",
-			"Environment Temperature",
 			"Fan 1 Relay",
 			"Fan 2 Relay",
 			"Fan Duty Percent",
-			"Fan 1 RPM",
-			"Fan 2 RPM",
-			"CPU Temperature" 
+			"Fan 1 Speed",
+			"Fan 2 Speed"
 		});
 
 		const auto rotate_csv = [&]()
@@ -340,8 +338,8 @@ namespace sl
 
 		const std::set<uint32_t> irrigation_pump_pins =
 		{
-			pins::IRRIGATION_PUMP_1,
-			pins::IRRIGATION_PUMP_2
+			pins::PUMP_1_RELAY,
+			pins::PUMP_2_RELAY
 		};
 
 		const std::set<uint32_t> fan_relay_pins =
@@ -356,7 +354,7 @@ namespace sl
 			pins::FAN_2_TACHOMETER
 		};
 
-		gpio::chip chip(sl::paths::GPIO);
+		gpio::chip chip(sl::paths::GPIO_CHIP);
 
 		// I do not have an oscilloscope so these values are arbitrary
 		constexpr auto water_level_sensor_debounce = std::chrono::milliseconds(10);
@@ -374,17 +372,20 @@ namespace sl
 			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, fan_relay_pins);
 
 		gpio::line_group fan_tachometers =
-			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING,
+			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_BIAS_PULL_UP,
 				fan_tachometer_pins,
 				fan_tacho_debounce);
 
 		// Confusingly enough, the Rasperry Pi PWM 0 is in pwmchip2
 		// Fans use 25kHz https://www.mouser.com/pdfDocs/San_Ace_EPWMControlFunction.pdf
 		// https://noctua.at/pub/media/wysiwyg/Noctua_PWM_specifications_white_paper.pdf
-		pwm::chip fan_pwm(sl::paths::PWM, 0, 25000);
+		pwm::chip fan_pwm(sl::paths::PWM_CHIP, 0, 25000);
 
-		io::file_descriptor thermal_zone0(sl::paths::THERMAL);
-		io::file_descriptor ds18b20(find_temperature_sensor_path());
+		io::file_descriptor cpu_temp_file(sl::paths::CPU_TEMPERATURE);
+		io::file_descriptor air_temp_file(sl::paths::IIO_DEVICE0 / "in_temp_input");
+		io::file_descriptor air_humidity_file(sl::paths::IIO_DEVICE0 / "in_humidityrelative_input");
+		io::file_descriptor air_pressure_file(sl::paths::IIO_DEVICE0 / "in_pressure_input");
+		io::file_descriptor air_resistance_file(sl::paths::IIO_DEVICE0 / "in_resistance_input");
 
 		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, common_stop_source, std::cref(water_level_sensors));
 		std::jthread fan_measurement_thread(measure_fans, common_stop_source, std::cref(fan_tachometers));
@@ -393,10 +394,14 @@ namespace sl
 
 		log_debug("main loop %d started.", gettid());
 
-		for (int minute = time::local_time().tm_min; !stop_token.stop_requested() && sleep_until_next_even_minute(); ++minute)
+		for (int minute = time::local_time().tm_min + 1; !stop_token.stop_requested() && sleep_until_next_even_minute(); ++minute)
 		{
-			float environment_celcius = read_temperature(ds18b20);
-			float cpu_celcius = read_temperature(thermal_zone0);
+			const auto cpu_temperature = value_from_file<float>(cpu_temp_file) / 1000.0f; // celcius
+			const auto air_temperature = value_from_file<float>(air_temp_file) / 1000.0f;  // celcius
+			const auto air_humidity = value_from_file<float>(air_humidity_file); // relative percent
+			const auto air_pressure = value_from_file<float>(air_pressure_file); // hectopascal
+			const auto air_resistance = value_from_file<int>(air_resistance_file); // ohms
+
 			float duty_percent;
 			bool pump_state;
 
@@ -409,27 +414,30 @@ namespace sl
 			else
 			{
 				pump_state = toggle_irrigation(irrigation_pumps, minute % 20 == 0);
-				duty_percent = adjust_fans(fan_relays, fan_pwm, environment_celcius);
+				duty_percent = adjust_fans(fan_relays, fan_pwm, air_temperature);
 			}
 
 			csv.append_row(
 				time::datetime_string(),
-				water_level_sensor_states[0].load() ? "High" : "Low",
-				water_level_sensor_states[1].load() ? "High" : "Low",
-				pump_state ? "On" : "Off",
-				pump_state ? "On" : "Off",
-				environment_celcius,
-				duty_percent > 0.0f ? "On" : "Off",
-				duty_percent > 0.0f ? "On" : "Off",
+				cpu_temperature,
+				air_temperature,
+				air_humidity,
+				air_pressure,
+				air_resistance,
+				water_level_sensor_states[0].load() ? "high" : "low",
+				water_level_sensor_states[1].load() ? "high" : "low",
+				pump_state ? "on" : "off",
+				pump_state ? "on" : "off",
+				duty_percent > 0.0f ? "on" : "off",
+				duty_percent > 0.0f ? "on" : "off",
 				duty_percent,
 				fan_rpms[0].load(),
-				fan_rpms[1].load(),
-				cpu_celcius);
+				fan_rpms[1].load());
 		}
 
 		// Turn off relays on exit
-		toggle_irrigation(irrigation_pumps, false);
 		adjust_fans(fan_relays, fan_pwm, 0.0f);
+		toggle_irrigation(irrigation_pumps, false);
 
 		// If the fans are spinning, there should not be a reason to wait for the fans to spool down,
 		// because the fan rpm read function will block the jthread from exiting

@@ -74,11 +74,6 @@ namespace sl::io
 		return static_cast<size_t>(result);
 	}
 
-	size_t file_descriptor::read_text(std::string& text) const
-	{
-		return file_descriptor::read(text.data(), text.size());
-	}
-
 	void file_descriptor::write(const void* data, size_t size) const
 	{
 		int result = ::write(_descriptor, data, size);
@@ -93,12 +88,6 @@ namespace sl::io
 			throw std::system_error(-EIO, std::system_category(), "write");
 		}
 	}
-
-	void file_descriptor::write_text(std::string_view text) const
-	{
-		return file_descriptor::write(text.data(), text.size());
-	}
-
 
 	size_t file_descriptor::file_size() const
 	{

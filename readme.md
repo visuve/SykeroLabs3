@@ -38,4 +38,4 @@
 	- ``systemctl --user enable sykerolabs.service`` to enable on boot (assuming the status is okay)
 	- ``systemctl --user stop sykerolabs.service`` to stop the service if needed
 	- ``systemctl --user disable sykerolabs.service`` to disable the service on boot
-- Important: run ``sudo loginctl enable-linger $USER`` for systemd not to kill the service after logout!
+- IMPORTANT: run ``sudo loginctl enable-linger $USER`` for [systemd](https://systemd.io/) not to kill the service after logout!
