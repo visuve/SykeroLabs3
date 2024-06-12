@@ -181,10 +181,6 @@ namespace sl
 	template <typename T>
 	T value_from_file(const io::file_descriptor& file)
 	{
-		// The BME680 sensor seems to hang when there are too many
-		// consecutive calls in a short time frame
-		time::nanosleep(std::chrono::milliseconds(100));
-
 		char buffer[0x80];
 
 		size_t bytes_read = file.read_text(buffer);
@@ -298,14 +294,13 @@ namespace sl
 
 	void run()
 	{
-		csv::file<15u> csv(csv_file_timestamped_path(),
+		csv::file<14u> csv(csv_file_timestamped_path(),
 		{
 			"Time",
 			"CPU Temperature",
 			"Air Temperature",
 			"Air Humidity",
 			"Air Pressure",
-			"Air Resistance",
 			"Water Level Sensor 1",
 			"Water Level Sensor 2",
 			"Pump 1 Relay",
@@ -385,7 +380,6 @@ namespace sl
 		io::file_descriptor air_temp_file(sl::paths::IIO_DEVICE0 / "in_temp_input");
 		io::file_descriptor air_humidity_file(sl::paths::IIO_DEVICE0 / "in_humidityrelative_input");
 		io::file_descriptor air_pressure_file(sl::paths::IIO_DEVICE0 / "in_pressure_input");
-		io::file_descriptor air_resistance_file(sl::paths::IIO_DEVICE0 / "in_resistance_input");
 
 		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, common_stop_source, std::cref(water_level_sensors));
 		std::jthread fan_measurement_thread(measure_fans, common_stop_source, std::cref(fan_tachometers));
@@ -400,7 +394,6 @@ namespace sl
 			const auto air_temperature = value_from_file<float>(air_temp_file) / 1000.0f;  // celcius
 			const auto air_humidity = value_from_file<float>(air_humidity_file); // relative percent
 			const auto air_pressure = value_from_file<float>(air_pressure_file); // hectopascal
-			const auto air_resistance = value_from_file<int>(air_resistance_file); // ohms
 
 			float duty_percent;
 			bool pump_state;
@@ -423,7 +416,6 @@ namespace sl
 				air_temperature,
 				air_humidity,
 				air_pressure,
-				air_resistance,
 				water_level_sensor_states[0].load() ? "high" : "low",
 				water_level_sensor_states[1].load() ? "high" : "low",
 				pump_state ? "on" : "off",
