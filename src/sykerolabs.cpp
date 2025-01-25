@@ -42,11 +42,18 @@ namespace sl
 
 	std::stop_source common_stop_source;
 
-	constexpr size_t water_level_sensor_count = 2;
-	std::array<std::atomic<bool>, water_level_sensor_count> water_level_sensor_states;
+	constexpr size_t PUMP_COUNT = 2;
+	std::array<bool, PUMP_COUNT> pump_states;
 
-	constexpr size_t fan_count = 2;
-	std::array<std::atomic<uint16_t>, fan_count> fan_rpms;
+	constexpr size_t WATER_LEVEL_SENSOR_COUNT = 2;
+	std::array<std::atomic<bool>, WATER_LEVEL_SENSOR_COUNT> water_level_sensor_states;
+
+	constexpr size_t FAN_COUNT = 2;
+	std::array<std::atomic<uint16_t>, FAN_COUNT> fan_rpms;
+	float duty_percent = 0.0f;
+
+	constexpr float ABSOLUTE_ZERO = -273.15f;
+	constexpr int INVALID_MINUTE = -1;
 
 	void monitor_water_level_sensors(std::stop_source stop_source, const gpio::line_group& water_level_sensors)
 	{
@@ -57,7 +64,7 @@ namespace sl
 			std::stop_token stop_token = stop_source.get_token();
 
 			{
-				std::array<gpio::line_value_pair, water_level_sensor_count> data =
+				std::array<gpio::line_value_pair, WATER_LEVEL_SENSOR_COUNT> data =
 				{
 					gpio::line_value_pair(pins::WATER_LEVEL_SENSOR_1),
 					gpio::line_value_pair(pins::WATER_LEVEL_SENSOR_2)
@@ -80,7 +87,7 @@ namespace sl
 
 					size_t sensor_index = event.offset - pins::WATER_LEVEL_SENSOR_1;
 
-					assert(sensor_index < water_level_sensor_count);
+					assert(sensor_index < WATER_LEVEL_SENSOR_COUNT);
 
 					auto& water_level_sensor_state = water_level_sensor_states[sensor_index];
 
@@ -116,10 +123,10 @@ namespace sl
 
 			mem::clear(fan_rpms);
 
-			std::array<float, fan_count> revolutions;
+			std::array<float, FAN_COUNT> revolutions;
 			mem::clear(revolutions);
 
-			std::array<float, fan_count> measure_start;
+			std::array<float, FAN_COUNT> measure_start;
 			mem::clear(measure_start);
 
 			gpio_v2_line_event event;
@@ -133,7 +140,7 @@ namespace sl
 
 					size_t fan_index = event.offset - pins::FAN_1_TACHOMETER;
 
-					assert(fan_index < fan_count);
+					assert(fan_index < FAN_COUNT);
 
 					if (event.line_seqno % 10 == 1)
 					{
@@ -207,52 +214,49 @@ namespace sl
 		throw std::invalid_argument("unsupported type");
 	}
 
-	bool toggle_irrigation(const gpio::line_group& irrigation_pumps, bool toggle)
+	void toggle_irrigation(const gpio::line_group& irrigation_pumps, int minute)
 	{
+		const bool pump1 = minute % 10 == 0;
+		const bool pump2 = minute % 10 == 5;
+
 		std::array<gpio::line_value_pair, 2> states =
 		{
-			gpio::line_value_pair(pins::PUMP_1_RELAY, !toggle),
-			gpio::line_value_pair(pins::PUMP_2_RELAY, !toggle),
+			gpio::line_value_pair(pins::PUMP_1_RELAY, !pump1),
+			gpio::line_value_pair(pins::PUMP_2_RELAY, !pump2),
 		};
 
 		irrigation_pumps.write_values(states);
-
-		// TODO: maybe read the actual value and do not assume
-		return toggle;
+		pump_states = { pump1, pump2 };
 	}
 
-	float adjust_fans(const gpio::line_group& fan_relays, pwm::chip& pwm, float temperature)
+	void adjust_fans(const gpio::line_group& fan_relays, pwm::chip& pwm, float temperature)
 	{
-		constexpr float min_temperature = 20.0f;
-		constexpr float max_temperature = 40.0f;
-		constexpr float temperature_step = 100.0f / (max_temperature - min_temperature);
+		constexpr float MIN_TEMPERATURE = 20.0f;
+		constexpr float MAX_TEMPERATURE = 40.0f;
+		constexpr float TEMPERATURE_STEP = 100.0f / (MAX_TEMPERATURE - MIN_TEMPERATURE);
 
 		std::array<gpio::line_value_pair, 2> states =
 		{
-			gpio::line_value_pair(pins::FAN_1_RELAY, !(temperature > min_temperature)),
-			gpio::line_value_pair(pins::FAN_2_RELAY, !(temperature > min_temperature)),
+			gpio::line_value_pair(pins::FAN_1_RELAY, !(temperature > MIN_TEMPERATURE)),
+			gpio::line_value_pair(pins::FAN_2_RELAY, !(temperature > MIN_TEMPERATURE)),
 		};
 
-		float duty_percent;
-
-		if (temperature <= min_temperature)
+		if (temperature <= MIN_TEMPERATURE)
 		{
 			duty_percent = 0.0f;
 
 		}
-		else if (temperature >= max_temperature)
+		else if (temperature >= MAX_TEMPERATURE)
 		{
 			duty_percent = 100.0f;
 		}
 		else
 		{
-			duty_percent = (temperature - min_temperature) * temperature_step;
+			duty_percent = (temperature - MIN_TEMPERATURE) * TEMPERATURE_STEP;
 		}
 
 		pwm.set_duty_percent(duty_percent);
 		fan_relays.write_values(states);
-
-		return duty_percent;
 	}
 
 	bool sleep_until_next_even_minute()
@@ -376,6 +380,10 @@ namespace sl
 		// https://noctua.at/pub/media/wysiwyg/Noctua_PWM_specifications_white_paper.pdf
 		pwm::chip fan_pwm(sl::paths::PWM_CHIP, 0, 25000);
 
+		// Turn off relays on start
+		adjust_fans(fan_relays, fan_pwm, ABSOLUTE_ZERO);
+		toggle_irrigation(irrigation_pumps, INVALID_MINUTE);
+
 		io::file_descriptor cpu_temp_file(sl::paths::CPU_TEMPERATURE);
 		io::file_descriptor air_temp_file(sl::paths::IIO_DEVICE0 / "in_temp_input");
 		io::file_descriptor air_humidity_file(sl::paths::IIO_DEVICE0 / "in_humidityrelative_input");
@@ -395,19 +403,16 @@ namespace sl
 			const auto air_humidity = value_from_file<float>(air_humidity_file); // relative percent
 			const auto air_pressure = value_from_file<float>(air_pressure_file); // hectopascal
 
-			float duty_percent;
-			bool pump_state;
-
 			// TODO: reduce unnecessary IO by storing the previous state or something
 			if (time::is_night())
 			{
-				pump_state = toggle_irrigation(irrigation_pumps, false);
-				duty_percent = adjust_fans(fan_relays, fan_pwm, 0.0f);
+				toggle_irrigation(irrigation_pumps, INVALID_MINUTE);
+				adjust_fans(fan_relays, fan_pwm, ABSOLUTE_ZERO);
 			}
 			else
 			{
-				pump_state = toggle_irrigation(irrigation_pumps, minute % 20 == 0);
-				duty_percent = adjust_fans(fan_relays, fan_pwm, air_temperature);
+				toggle_irrigation(irrigation_pumps, minute);
+				adjust_fans(fan_relays, fan_pwm, air_temperature);
 			}
 
 			csv.append_row(
@@ -418,8 +423,8 @@ namespace sl
 				air_pressure,
 				water_level_sensor_states[0].load() ? "high" : "low",
 				water_level_sensor_states[1].load() ? "high" : "low",
-				pump_state ? "on" : "off",
-				pump_state ? "on" : "off",
+				pump_states[0] ? "on" : "off",
+				pump_states[1] ? "on" : "off",
 				duty_percent > 0.0f ? "on" : "off",
 				duty_percent > 0.0f ? "on" : "off",
 				duty_percent,
@@ -428,8 +433,8 @@ namespace sl
 		}
 
 		// Turn off relays on exit
-		adjust_fans(fan_relays, fan_pwm, 0.0f);
-		toggle_irrigation(irrigation_pumps, false);
+		adjust_fans(fan_relays, fan_pwm, ABSOLUTE_ZERO);
+		toggle_irrigation(irrigation_pumps, INVALID_MINUTE);
 
 		// If the fans are spinning, there should not be a reason to wait for the fans to spool down,
 		// because the fan rpm read function will block the jthread from exiting
