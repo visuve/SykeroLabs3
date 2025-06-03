@@ -28,7 +28,8 @@ namespace sl
 	namespace paths
 	{
 		const std::filesystem::path CPU_TEMPERATURE("/sys/class/thermal/thermal_zone0/temp");
-		const std::filesystem::path IIO_DEVICE0("/sys/bus/iio/devices/iio:device0");
+		const std::filesystem::path IIO_DEVICE_BME680("/sys/bus/iio/devices/iio:device0");
+		const std::filesystem::path IIO_DEVICE_ADS1115("/sys/bus/iio/devices/iio:device1");
 
 #ifdef SYKEROLABS_RPI5
 		const std::filesystem::path PWM_CHIP("/sys/class/pwm/pwmchip2");
@@ -298,7 +299,7 @@ namespace sl
 
 	void run()
 	{
-		csv::file<14u> csv(csv_file_timestamped_path(),
+		csv::file<16u> csv(csv_file_timestamped_path(),
 		{
 			"Time",
 			"CPU Temperature",
@@ -313,7 +314,9 @@ namespace sl
 			"Fan 2 Relay",
 			"Fan Duty Percent",
 			"Fan 1 Speed",
-			"Fan 2 Speed"
+			"Fan 2 Speed",
+			"Pool 1 EC",
+			"Pool 2 EC"
 		});
 
 		const auto rotate_csv = [&]()
@@ -385,9 +388,11 @@ namespace sl
 		toggle_irrigation(irrigation_pumps, INVALID_MINUTE);
 
 		io::file_descriptor cpu_temp_file(sl::paths::CPU_TEMPERATURE);
-		io::file_descriptor air_temp_file(sl::paths::IIO_DEVICE0 / "in_temp_input");
-		io::file_descriptor air_humidity_file(sl::paths::IIO_DEVICE0 / "in_humidityrelative_input");
-		io::file_descriptor air_pressure_file(sl::paths::IIO_DEVICE0 / "in_pressure_input");
+		io::file_descriptor air_temp_file(sl::paths::IIO_DEVICE_BME680 / "in_temp_input");
+		io::file_descriptor air_humidity_file(sl::paths::IIO_DEVICE_BME680 / "in_humidityrelative_input");
+		io::file_descriptor air_pressure_file(sl::paths::IIO_DEVICE_BME680 / "in_pressure_input");
+		io::file_descriptor pool1_ec_file(sl::paths::IIO_DEVICE_ADS1115 / "in_voltage0_raw");
+		io::file_descriptor pool2_ec_file(sl::paths::IIO_DEVICE_ADS1115 / "in_voltage1_raw");
 
 		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, common_stop_source, std::cref(water_level_sensors));
 		std::jthread fan_measurement_thread(measure_fans, common_stop_source, std::cref(fan_tachometers));
@@ -402,6 +407,9 @@ namespace sl
 			const auto air_temperature = value_from_file<float>(air_temp_file) / 1000.0f;  // celcius
 			const auto air_humidity = value_from_file<float>(air_humidity_file); // relative percent
 			const auto air_pressure = value_from_file<float>(air_pressure_file); // hectopascal
+
+			const auto pool1_ec = value_from_file<int>(pool1_ec_file) / 10; // microsiemens per centimeter
+			const auto pool2_ec = value_from_file<int>(pool1_ec_file) / 10; // microsiemens per centimeter
 
 			// TODO: reduce unnecessary IO by storing the previous state or something
 			if (time::is_night())
@@ -429,7 +437,9 @@ namespace sl
 				duty_percent > 0.0f ? "on" : "off",
 				duty_percent,
 				fan_rpms[0].load(),
-				fan_rpms[1].load());
+				fan_rpms[1].load(),
+				pool1_ec,
+				pool2_ec);
 		}
 
 		// Turn off relays on exit
