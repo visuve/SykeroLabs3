@@ -18,8 +18,7 @@ namespace sl
 			WATER_LEVEL_SENSOR_2 = 6,
 			PUMP_1_RELAY = 13,
 			PUMP_2_RELAY = 16,
-			FAN_1_RELAY = 19,
-			FAN_2_RELAY = 20,
+			FAN_RELAY = 19,
 			FAN_1_TACHOMETER = 22,
 			FAN_2_TACHOMETER = 23
 		};
@@ -230,17 +229,13 @@ namespace sl
 		pump_states = { pump1, pump2 };
 	}
 
-	void adjust_fans(const gpio::line_group& fan_relays, pwm::chip& pwm, float temperature)
+	void adjust_fans(const gpio::line_group& fan_relay, pwm::chip& pwm, float temperature)
 	{
 		constexpr float MIN_TEMPERATURE = 20.0f;
 		constexpr float MAX_TEMPERATURE = 40.0f;
 		constexpr float TEMPERATURE_STEP = 100.0f / (MAX_TEMPERATURE - MIN_TEMPERATURE);
 
-		std::array<gpio::line_value_pair, 2> states =
-		{
-			gpio::line_value_pair(pins::FAN_1_RELAY, !(temperature > MIN_TEMPERATURE)),
-			gpio::line_value_pair(pins::FAN_2_RELAY, !(temperature > MIN_TEMPERATURE)),
-		};
+		gpio::line_value_pair state(pins::FAN_RELAY, !(temperature > MIN_TEMPERATURE));
 
 		if (temperature <= MIN_TEMPERATURE)
 		{
@@ -257,7 +252,7 @@ namespace sl
 		}
 
 		pwm.set_duty_percent(duty_percent);
-		fan_relays.write_values(states);
+		fan_relay.write_value(state);
 	}
 
 	bool sleep_until_next_even_minute()
@@ -344,10 +339,9 @@ namespace sl
 			pins::PUMP_2_RELAY
 		};
 
-		const std::set<uint32_t> fan_relay_pins =
+		const std::set<uint32_t> fan_relay_pin =
 		{
-			pins::FAN_1_RELAY,
-			pins::FAN_2_RELAY
+			pins::FAN_RELAY
 		};
 
 		const std::set<uint32_t> fan_tachometer_pins =
@@ -370,8 +364,8 @@ namespace sl
 				water_level_sensor_pins,
 				water_level_sensor_debounce);
 
-		gpio::line_group fan_relays =
-			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, fan_relay_pins);
+		gpio::line_group fan_relay =
+			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, fan_relay_pin);
 
 		gpio::line_group fan_tachometers =
 			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_BIAS_PULL_UP,
@@ -384,7 +378,7 @@ namespace sl
 		pwm::chip fan_pwm(sl::paths::PWM_CHIP, 0, 25000);
 
 		// Turn off relays on start
-		adjust_fans(fan_relays, fan_pwm, ABSOLUTE_ZERO);
+		adjust_fans(fan_relay, fan_pwm, ABSOLUTE_ZERO);
 		toggle_irrigation(irrigation_pumps, INVALID_MINUTE);
 
 		io::file_descriptor cpu_temp_file(sl::paths::CPU_TEMPERATURE);
@@ -415,12 +409,12 @@ namespace sl
 			if (time::is_night())
 			{
 				toggle_irrigation(irrigation_pumps, INVALID_MINUTE);
-				adjust_fans(fan_relays, fan_pwm, ABSOLUTE_ZERO);
+				adjust_fans(fan_relay, fan_pwm, ABSOLUTE_ZERO);
 			}
 			else
 			{
 				toggle_irrigation(irrigation_pumps, minute);
-				adjust_fans(fan_relays, fan_pwm, air_temperature);
+				adjust_fans(fan_relay, fan_pwm, air_temperature);
 			}
 
 			csv.append_row(
@@ -443,7 +437,7 @@ namespace sl
 		}
 
 		// Turn off relays on exit
-		adjust_fans(fan_relays, fan_pwm, ABSOLUTE_ZERO);
+		adjust_fans(fan_relay, fan_pwm, ABSOLUTE_ZERO);
 		toggle_irrigation(irrigation_pumps, INVALID_MINUTE);
 
 		// If the fans are spinning, there should not be a reason to wait for the fans to spool down,
