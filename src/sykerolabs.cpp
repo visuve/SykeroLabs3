@@ -27,8 +27,7 @@ namespace sl
 	namespace paths
 	{
 		const std::filesystem::path CPU_TEMPERATURE("/sys/class/thermal/thermal_zone0/temp");
-		const std::filesystem::path IIO_DEVICE_BME680("/sys/bus/iio/devices/iio:device0");
-		const std::filesystem::path IIO_DEVICE_ADS1115("/sys/bus/iio/devices/iio:device1");
+		const std::filesystem::path IIO_DEVICE("/sys/bus/iio/devices/iio:device");
 
 #ifdef SYKEROLABS_RPI5
 		const std::filesystem::path PWM_CHIP("/sys/class/pwm/pwmchip2");
@@ -292,6 +291,37 @@ namespace sl
 		return sykerolabs / (time::date_string() + ".csv");
 	}
 
+
+	std::filesystem::path find_iio_device(const std::string_view expected_name)
+	{
+		std::string name_buffer(0x80, '\0');
+
+		for (size_t i = 0; i < 10; ++i)
+		{
+			const std::filesystem::path device_name_path = paths::IIO_DEVICE.string() + std::to_string(i) + "/name";
+
+			if (!std::filesystem::exists(device_name_path))
+			{
+				log_warning("%s does not exist, skipping.", device_name_path.c_str());
+				continue;
+			}
+
+			io::file_descriptor device_name_file(device_name_path);
+
+			size_t bytes_read = device_name_file.read_text(name_buffer);
+
+			if (bytes_read && name_buffer.substr(0, bytes_read - 1) == expected_name)
+			{
+				return device_name_path.parent_path();
+			}
+		}
+
+		const std::string error_message = 
+			"Device " + std::string(expected_name) + " not found in /sys/bus/iio/devices/iio:device*";
+
+		throw std::runtime_error(error_message);
+	}
+
 	void run()
 	{
 		csv::file<16u> csv(csv_file_timestamped_path(),
@@ -324,6 +354,7 @@ namespace sl
 			const std::string ttm = time::time_string(first_start);
 			log_debug("time to midnight: %s.", ttm.c_str());
 		}
+
 		constexpr std::chrono::days interval(1);
 		time::timer csv_rotate_timer(rotate_csv, first_start, interval);
 
@@ -381,12 +412,15 @@ namespace sl
 		adjust_fans(fan_relay, fan_pwm, ABSOLUTE_ZERO);
 		toggle_irrigation(irrigation_pumps, INVALID_MINUTE);
 
+		const std::filesystem::path bme680_path = find_iio_device("bme680");
+		const std::filesystem::path ads1115_path = find_iio_device("ads1015"); // ADS1015 and ADS1115 use the same driver
+
 		io::file_descriptor cpu_temp_file(sl::paths::CPU_TEMPERATURE);
-		io::file_descriptor air_temp_file(sl::paths::IIO_DEVICE_BME680 / "in_temp_input");
-		io::file_descriptor air_humidity_file(sl::paths::IIO_DEVICE_BME680 / "in_humidityrelative_input");
-		io::file_descriptor air_pressure_file(sl::paths::IIO_DEVICE_BME680 / "in_pressure_input");
-		io::file_descriptor pool1_ec_file(sl::paths::IIO_DEVICE_ADS1115 / "in_voltage0_raw");
-		io::file_descriptor pool2_ec_file(sl::paths::IIO_DEVICE_ADS1115 / "in_voltage1_raw");
+		io::file_descriptor air_temp_file(bme680_path / "in_temp_input");
+		io::file_descriptor air_humidity_file(bme680_path / "in_humidityrelative_input");
+		io::file_descriptor air_pressure_file(bme680_path / "in_pressure_input");
+		io::file_descriptor pool1_ec_file(ads1115_path / "in_voltage0_raw");
+		io::file_descriptor pool2_ec_file(ads1115_path / "in_voltage1_raw");
 
 		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, common_stop_source, std::cref(water_level_sensors));
 		std::jthread fan_measurement_thread(measure_fans, common_stop_source, std::cref(fan_tachometers));
@@ -403,7 +437,7 @@ namespace sl
 			const auto air_pressure = value_from_file<float>(air_pressure_file); // hectopascal
 
 			const auto pool1_ec = value_from_file<int>(pool1_ec_file) / 10; // microsiemens per centimeter
-			const auto pool2_ec = value_from_file<int>(pool1_ec_file) / 10; // microsiemens per centimeter
+			const auto pool2_ec = value_from_file<int>(pool2_ec_file) / 10; // microsiemens per centimeter
 
 			// TODO: reduce unnecessary IO by storing the previous state or something
 			if (time::is_night())
