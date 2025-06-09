@@ -324,7 +324,7 @@ namespace sl
 
 	void run()
 	{
-		csv::file<16u> csv(csv_file_timestamped_path(),
+		csv::file<15u> csv(csv_file_timestamped_path(),
 		{
 			"Time",
 			"CPU Temperature",
@@ -335,8 +335,7 @@ namespace sl
 			"Water Level Sensor 2",
 			"Pump 1 Relay",
 			"Pump 2 Relay",
-			"Fan 1 Relay",
-			"Fan 2 Relay",
+			"Fan Relay",
 			"Fan Duty Percent",
 			"Fan 1 Speed",
 			"Fan 2 Speed",
@@ -461,7 +460,6 @@ namespace sl
 				water_level_sensor_states[1].load() ? "high" : "low",
 				pump_states[0] ? "on" : "off",
 				pump_states[1] ? "on" : "off",
-				duty_percent > 0.0f ? "on" : "off",
 				duty_percent > 0.0f ? "on" : "off",
 				duty_percent,
 				fan_rpms[0].load(),
