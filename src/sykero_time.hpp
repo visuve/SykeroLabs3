@@ -55,6 +55,18 @@ namespace sl::time
 		return timespec_to_duration<std::chrono::duration<Rep, Period>>(remaining);
 	}
 
+	template<typename T>
+	bool sleep_until_next_even()
+	{
+		auto now = std::chrono::system_clock::now();
+		auto next_full_minute = std::chrono::ceil<T>(now);
+
+		std::chrono::nanoseconds sleep_time = next_full_minute - now;
+		std::chrono::nanoseconds time_left = time::nanosleep(sleep_time);
+
+		return time_left.count() <= 0;
+	}
+
 	class timer
 	{
 	public:

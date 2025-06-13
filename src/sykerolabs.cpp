@@ -146,35 +146,6 @@ namespace sl
 		log_debug("thread %d measure_fans stopped.", gettid());
 	}
 
-	template <typename T>
-	T value_from_file(const io::file_descriptor& file)
-	{
-		char buffer[0x80];
-
-		size_t bytes_read = file.read_text(buffer);
-
-		if (!bytes_read)
-		{
-			throw std::runtime_error("failed to read");
-		}
-
-		file.reposition(0);
-
-		std::string trimmed(buffer, bytes_read - 1);
-
-		if constexpr (std::is_same_v<T, int>)
-		{
-			return std::stoi(trimmed);
-		}
-		
-		if constexpr (std::is_same_v<T, float>)
-		{
-			return std::stof(trimmed);
-		}
-
-		throw std::invalid_argument("unsupported type");
-	}
-
 	void toggle_irrigation(const gpio::line_group& irrigation_pumps, int minute)
 	{
 		const bool pump1 = minute % 10 == 0;
@@ -212,17 +183,6 @@ namespace sl
 		fan_relay.write_value(state);
 	}
 
-	bool sleep_until_next_even_minute()
-	{
-		auto now = std::chrono::system_clock::now();
-		auto next_full_minute = std::chrono::ceil<std::chrono::minutes>(now);
-
-		std::chrono::nanoseconds sleep_time = next_full_minute - now;
-		std::chrono::nanoseconds time_left = time::nanosleep(sleep_time);
-
-		return time_left.count() <= 0;
-	}
-
 	void signal_handler(int signal)
 	{
 		log_notice("signaled: %d.", signal);
@@ -248,7 +208,6 @@ namespace sl
 
 		return sykerolabs / (time::date_string() + ".csv");
 	}
-
 
 	std::filesystem::path find_iio_device(const std::string_view expected_name)
 	{
@@ -382,15 +341,15 @@ namespace sl
 		// This is basically a 10 min average; I do not want the fans to toggle on and off possibly every minute
 		average<float, 10> air_temperature;
 
-		for (int minute = time::local_time().tm_min + 1; !stop_token.stop_requested() && sleep_until_next_even_minute(); ++minute)
+		for (int minute = time::local_time().tm_min + 1; !stop_token.stop_requested() && time::sleep_until_next_even<std::chrono::minutes>(); ++minute)
 		{
-			const auto cpu_temperature = value_from_file<float>(cpu_temp_file) / 1000.0f; // celcius
-			air_temperature = value_from_file<float>(air_temp_file) / 1000.0f;  // celcius
-			const auto air_humidity = value_from_file<float>(air_humidity_file); // relative percent
-			const auto air_pressure = value_from_file<float>(air_pressure_file); // hectopascal
+			const auto cpu_temperature = io::value_from_file<float>(cpu_temp_file) / 1000.0f; // celcius
+			air_temperature = io::value_from_file<float>(air_temp_file) / 1000.0f;  // celcius
+			const auto air_humidity = io::value_from_file<float>(air_humidity_file); // relative percent
+			const auto air_pressure = io::value_from_file<float>(air_pressure_file); // hectopascal
 
-			const auto pool1_ec = value_from_file<int>(pool1_ec_file) / 10; // microsiemens per centimeter
-			const auto pool2_ec = value_from_file<int>(pool2_ec_file) / 10; // microsiemens per centimeter
+			const auto pool1_ec = io::value_from_file<int>(pool1_ec_file) / 10; // microsiemens per centimeter
+			const auto pool2_ec = io::value_from_file<int>(pool2_ec_file) / 10; // microsiemens per centimeter
 
 			// TODO: reduce unnecessary IO by storing the previous state or something
 			if (time::is_night())
