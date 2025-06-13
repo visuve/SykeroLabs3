@@ -1,4 +1,5 @@
 #include "mega.pch"
+#include "sykerolabs.hpp"
 #include "sykero_mem.hpp"
 #include "sykero_io.hpp"
 #include "sykero_gpio.hpp"
@@ -9,50 +10,11 @@
 
 namespace sl
 {
-	// See https://github.com/visuve/SykeroLabs3/wiki/Pin-configuration for more details
-	namespace pins
-	{
-		enum : uint8_t
-		{
-			WATER_LEVEL_SENSOR_1 = 5,
-			WATER_LEVEL_SENSOR_2 = 6,
-			PUMP_1_RELAY = 13,
-			PUMP_2_RELAY = 16,
-			FAN_RELAY = 19,
-			FAN_1_TACHOMETER = 22,
-			FAN_2_TACHOMETER = 23
-		};
-	}
-
-	namespace paths
-	{
-		const std::filesystem::path CPU_TEMPERATURE("/sys/class/thermal/thermal_zone0/temp");
-		const std::filesystem::path IIO_DEVICE("/sys/bus/iio/devices/iio:device");
-
-#ifdef SYKEROLABS_RPI5
-		const std::filesystem::path PWM_CHIP("/sys/class/pwm/pwmchip2");
-		const std::filesystem::path GPIO_CHIP("/dev/gpiochip4");
-#endif
-#ifdef SYKEROLABS_RPIZ2W
-		const std::filesystem::path PWM_CHIP("/sys/class/pwm/pwmchip0");
-		const std::filesystem::path GPIO_CHIP("/dev/gpiochip0");
-#endif
-	}
-
 	std::stop_source common_stop_source;
-
-	constexpr size_t PUMP_COUNT = 2;
 	std::array<bool, PUMP_COUNT> pump_states;
-
-	constexpr size_t WATER_LEVEL_SENSOR_COUNT = 2;
 	std::array<std::atomic<bool>, WATER_LEVEL_SENSOR_COUNT> water_level_sensor_states;
-
-	constexpr size_t FAN_COUNT = 2;
 	std::array<std::atomic<uint16_t>, FAN_COUNT> fan_rpms;
-	float duty_percent = 0.0f;
-
-	constexpr float ABSOLUTE_ZERO = -273.15f;
-	constexpr int INVALID_MINUTE = -1;
+	float duty_percent = DUTY_PERCENTAGE_MIN;
 
 	void monitor_water_level_sensors(std::stop_source stop_source, const gpio::line_group& water_level_sensors)
 	{
@@ -230,24 +192,20 @@ namespace sl
 
 	void adjust_fans(const gpio::line_group& fan_relay, pwm::chip& pwm, float temperature)
 	{
-		constexpr float MIN_TEMPERATURE = 20.0f;
-		constexpr float MAX_TEMPERATURE = 40.0f;
-		constexpr float TEMPERATURE_STEP = 100.0f / (MAX_TEMPERATURE - MIN_TEMPERATURE);
+		gpio::line_value_pair state(pins::FAN_RELAY, !(temperature > MIN_FAN_TOGGLE_CELCIUS));
 
-		gpio::line_value_pair state(pins::FAN_RELAY, !(temperature > MIN_TEMPERATURE));
-
-		if (temperature <= MIN_TEMPERATURE)
+		if (temperature <= MIN_FAN_TOGGLE_CELCIUS)
 		{
-			duty_percent = 0.0f;
+			duty_percent = DUTY_PERCENTAGE_MIN;
 
 		}
-		else if (temperature >= MAX_TEMPERATURE)
+		else if (temperature >= MAX_FAN_TOGGLE_CELCIUS)
 		{
-			duty_percent = 100.0f;
+			duty_percent = DUTY_PERCENTAGE_MAX;
 		}
 		else
 		{
-			duty_percent = (temperature - MIN_TEMPERATURE) * TEMPERATURE_STEP;
+			duty_percent = (temperature - MIN_FAN_TOGGLE_CELCIUS) * FAN_TEMPERATURE_STEP;
 		}
 
 		pwm.set_duty_percent(duty_percent);
@@ -296,7 +254,7 @@ namespace sl
 	{
 		std::string name_buffer(0x80, '\0');
 
-		for (size_t i = 0; i < 10; ++i)
+		for (size_t i = 0; i < MAX_IIO_DEVICES; ++i)
 		{
 			const std::filesystem::path device_name_path = paths::IIO_DEVICE.string() + std::to_string(i) + "/name";
 
@@ -382,17 +340,13 @@ namespace sl
 
 		gpio::chip chip(sl::paths::GPIO_CHIP);
 
-		// I do not have an oscilloscope so these values are arbitrary
-		constexpr auto water_level_sensor_debounce = std::chrono::milliseconds(10);
-		constexpr auto fan_tacho_debounce = std::chrono::microseconds(100);
-
 		gpio::line_group irrigation_pumps =
 			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, irrigation_pump_pins);
 
 		gpio::line_group water_level_sensors =
 			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EDGE_FALLING,
 				water_level_sensor_pins,
-				water_level_sensor_debounce);
+				WATER_LEVEL_SENSOR_DEBOUNCE);
 
 		gpio::line_group fan_relay =
 			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, fan_relay_pin);
@@ -400,12 +354,9 @@ namespace sl
 		gpio::line_group fan_tachometers =
 			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_BIAS_PULL_UP,
 				fan_tachometer_pins,
-				fan_tacho_debounce);
+				FAN_TACHOMETER_DEBOUNCE);
 
-		// Confusingly enough, the Rasperry Pi PWM 0 is in pwmchip2
-		// Fans use 25kHz https://www.mouser.com/pdfDocs/San_Ace_EPWMControlFunction.pdf
-		// https://noctua.at/pub/media/wysiwyg/Noctua_PWM_specifications_white_paper.pdf
-		pwm::chip fan_pwm(sl::paths::PWM_CHIP, 0, 25000);
+		pwm::chip fan_pwm(sl::paths::PWM_CHIP, 0, FAN_PWM_CONTROL_FREQUENCY);
 
 		// Turn off relays on start
 		adjust_fans(fan_relay, fan_pwm, ABSOLUTE_ZERO);
@@ -456,11 +407,11 @@ namespace sl
 				air_temperature,
 				air_humidity,
 				air_pressure,
-				water_level_sensor_states[0].load() ? "high" : "low",
-				water_level_sensor_states[1].load() ? "high" : "low",
-				pump_states[0] ? "on" : "off",
-				pump_states[1] ? "on" : "off",
-				duty_percent > 0.0f ? "on" : "off",
+				water_level_sensor_states[0].load() ? STR_HIGH : STR_LOW,
+				water_level_sensor_states[1].load() ? STR_HIGH : STR_LOW,
+				pump_states[0] ? STR_ON : STR_OFF,
+				pump_states[1] ? STR_ON : STR_OFF,
+				duty_percent > DUTY_PERCENTAGE_MIN ? STR_ON : STR_OFF,
 				duty_percent,
 				fan_rpms[0].load(),
 				fan_rpms[1].load(),
