@@ -379,10 +379,13 @@ namespace sl
 
 		log_debug("main loop %d started.", gettid());
 
+		// This is basically a 10 min average; I do not want the fans to toggle on and off possibly every minute
+		average<float, 10> air_temperature;
+
 		for (int minute = time::local_time().tm_min + 1; !stop_token.stop_requested() && sleep_until_next_even_minute(); ++minute)
 		{
 			const auto cpu_temperature = value_from_file<float>(cpu_temp_file) / 1000.0f; // celcius
-			const auto air_temperature = value_from_file<float>(air_temp_file) / 1000.0f;  // celcius
+			air_temperature = value_from_file<float>(air_temp_file) / 1000.0f;  // celcius
 			const auto air_humidity = value_from_file<float>(air_humidity_file); // relative percent
 			const auto air_pressure = value_from_file<float>(air_pressure_file); // hectopascal
 
@@ -404,7 +407,7 @@ namespace sl
 			csv.append_row(
 				time::datetime_string(),
 				cpu_temperature,
-				air_temperature,
+				air_temperature.value(),
 				air_humidity,
 				air_pressure,
 				water_level_sensor_states[0].load() ? STR_HIGH : STR_LOW,

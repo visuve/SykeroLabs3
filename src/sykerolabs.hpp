@@ -60,4 +60,48 @@ namespace sl
 	constexpr char STR_OFF[] = "off";
 	constexpr char STR_HIGH[] = "high";
 	constexpr char STR_LOW[] = "low";
+
+	template<typename T>
+	concept Arithmetic = std::is_arithmetic_v<T>;
+
+	template<Arithmetic T, size_t N>
+	class average
+	{
+	public:
+		static_assert(N > 0, "N must be greater than zero");
+
+		T value() const
+		{
+			if (!_count)
+			{
+				throw std::logic_error("cannot calculate the average of zero samples");
+			}
+
+			T sum = T(0);
+
+			for (size_t i = 0; i < _count; ++i)
+			{
+				sum += _samples[i];
+			}
+
+			return sum / static_cast<T>(_count);
+		}
+
+		operator T() const
+		{
+			return value();
+		}
+
+		void operator = (T value)
+		{
+			_samples[_index] = value;
+			_count = std::max(_index + 1, _count);
+			_index = (_index + 1) % N;
+		}
+
+	private:
+		T _samples[N] = {};
+		size_t _count = 0;
+		size_t _index = 0;
+	};
 };
