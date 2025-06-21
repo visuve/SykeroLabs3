@@ -14,6 +14,8 @@ namespace sl
 	std::array<bool, PUMP_COUNT> pump_states;
 	std::array<std::atomic<bool>, WATER_LEVEL_SENSOR_COUNT> water_level_sensor_states;
 	std::array<std::atomic<uint16_t>, FAN_COUNT> fan_rpms;
+	std::array<uint32_t, TDS_PROBE_COUNT> tds_values;
+
 	float duty_percent = DUTY_PERCENTAGE_MIN;
 
 	void monitor_water_level_sensors(std::stop_source stop_source, const gpio::line_group& water_level_sensors)
@@ -146,6 +148,23 @@ namespace sl
 		log_debug("thread %d measure_fans stopped.", gettid());
 	}
 
+	void measure_tds(const gpio::line_group& tds_probes, io::file_descriptor& pool1_ec_file, io::file_descriptor& pool2_ec_file)
+	{
+		// Turn on the probes
+		tds_probes.write_value(gpio::line_value_pair(pins::TDS_PROBE_RELAY, false));
+
+		// The sampling interval is 8 times in a second, see datarate parameters in
+		// https://github.com/visuve/SykeroLabs3/wiki/Operating-system-configuration#full-bootfirmwareconfigtxt
+		// With 250ms there should be at least 2 samples available
+		std::this_thread::sleep_for(std::chrono::milliseconds(250));
+
+		tds_values[0] = io::value_from_file<uint32_t>(pool1_ec_file) / 10; // microsiemens per centimeter
+		tds_values[1] = io::value_from_file<uint32_t>(pool2_ec_file) / 10; // microsiemens per centimeter
+
+		// Turn off the probes to save energy
+		tds_probes.write_value(gpio::line_value_pair(pins::TDS_PROBE_RELAY, true));
+	}
+
 	void toggle_irrigation(const gpio::line_group& irrigation_pumps, int minute)
 	{
 		const bool pump1 = minute % 10 == 0;
@@ -271,8 +290,7 @@ namespace sl
 			log_debug("time to midnight: %s.", ttm.c_str());
 		}
 
-		constexpr std::chrono::days interval(1);
-		time::timer csv_rotate_timer(rotate_csv, first_start, interval);
+		time::timer csv_rotate_timer(rotate_csv, first_start, LOG_ROTATION_INTERVAL);
 
 		const std::set<uint32_t> water_level_sensor_pins =
 		{
@@ -289,6 +307,11 @@ namespace sl
 		const std::set<uint32_t> fan_relay_pin =
 		{
 			pins::FAN_RELAY
+		};
+
+		const std::set<uint32_t> tds_probe_relay_pin =
+		{
+			pins::TDS_PROBE_RELAY
 		};
 
 		const std::set<uint32_t> fan_tachometer_pins =
@@ -309,6 +332,9 @@ namespace sl
 
 		gpio::line_group fan_relay =
 			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, fan_relay_pin);
+
+		gpio::line_group tds_probe_relay =
+			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, tds_probe_relay_pin);
 
 		gpio::line_group fan_tachometers =
 			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_BIAS_PULL_UP,
@@ -348,9 +374,6 @@ namespace sl
 			const auto air_humidity = io::value_from_file<float>(air_humidity_file); // relative percent
 			const auto air_pressure = io::value_from_file<float>(air_pressure_file); // hectopascal
 
-			const auto pool1_ec = io::value_from_file<int>(pool1_ec_file) / 10; // microsiemens per centimeter
-			const auto pool2_ec = io::value_from_file<int>(pool2_ec_file) / 10; // microsiemens per centimeter
-
 			// TODO: reduce unnecessary IO by storing the previous state or something
 			if (time::is_night())
 			{
@@ -362,6 +385,8 @@ namespace sl
 				toggle_irrigation(irrigation_pumps, minute);
 				adjust_fans(fan_relay, fan_pwm, air_temperature);
 			}
+
+			measure_tds(tds_probe_relay, pool1_ec_file, pool2_ec_file);
 
 			csv.append_row(
 				time::datetime_string(),
@@ -377,8 +402,8 @@ namespace sl
 				duty_percent,
 				fan_rpms[0].load(),
 				fan_rpms[1].load(),
-				pool1_ec,
-				pool2_ec);
+				tds_values[0],
+				tds_values[1]);
 		}
 
 		// Turn off relays on exit

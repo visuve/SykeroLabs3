@@ -12,6 +12,7 @@ namespace sl
 			PUMP_1_RELAY = 13,
 			PUMP_2_RELAY = 16,
 			FAN_RELAY = 19,
+			TDS_PROBE_RELAY = 20,
 			FAN_1_TACHOMETER = 22,
 			FAN_2_TACHOMETER = 23
 		};
@@ -41,6 +42,7 @@ namespace sl
 	constexpr size_t PUMP_COUNT = 2;
 	constexpr size_t WATER_LEVEL_SENSOR_COUNT = 2;
 	constexpr size_t FAN_COUNT = 2;
+	constexpr size_t TDS_PROBE_COUNT = 2;
 
 	constexpr float DUTY_PERCENTAGE_MIN = 0.0f;
 	constexpr float DUTY_PERCENTAGE_MAX = 100.0f;
@@ -48,6 +50,8 @@ namespace sl
 	// Fans use 25kHz https://www.mouser.com/pdfDocs/San_Ace_EPWMControlFunction.pdf
 	// https://noctua.at/pub/media/wysiwyg/Noctua_PWM_specifications_white_paper.pdf
 	constexpr float FAN_PWM_CONTROL_FREQUENCY = 25000.0f;
+
+	constexpr std::chrono::days LOG_ROTATION_INTERVAL(1);
 
 	// I do not have an oscilloscope so these values are arbitrary
 	constexpr std::chrono::milliseconds WATER_LEVEL_SENSOR_DEBOUNCE(10);
