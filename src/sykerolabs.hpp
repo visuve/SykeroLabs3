@@ -56,6 +56,8 @@ namespace sl
 	// I do not have an oscilloscope so these values are arbitrary
 	constexpr std::chrono::milliseconds WATER_LEVEL_SENSOR_DEBOUNCE(10);
 	constexpr std::chrono::microseconds FAN_TACHOMETER_DEBOUNCE(100);
+	constexpr std::chrono::seconds TDS_PROBE_WAKEUP_DELAY(1);
+	constexpr std::chrono::minutes TDS_READ_INTERVAL(7);
 
 	// Completely arbitrary value. Change if needed. I have two.
 	constexpr size_t MAX_IIO_DEVICES = 9;

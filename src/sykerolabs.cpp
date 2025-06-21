@@ -14,7 +14,7 @@ namespace sl
 	std::array<bool, PUMP_COUNT> pump_states;
 	std::array<std::atomic<bool>, WATER_LEVEL_SENSOR_COUNT> water_level_sensor_states;
 	std::array<std::atomic<uint16_t>, FAN_COUNT> fan_rpms;
-	std::array<uint32_t, TDS_PROBE_COUNT> tds_values;
+	std::array<std::atomic<uint32_t>, TDS_PROBE_COUNT> tds_values;
 
 	float duty_percent = DUTY_PERCENTAGE_MIN;
 
@@ -148,21 +148,51 @@ namespace sl
 		log_debug("thread %d measure_fans stopped.", gettid());
 	}
 
-	void measure_tds(const gpio::line_group& tds_probes, io::file_descriptor& pool1_ec_file, io::file_descriptor& pool2_ec_file)
+	void measure_tds(std::stop_source stop_source, const gpio::line_group& tds_probe_relay, io::file_descriptor& pool1_ec_file, io::file_descriptor& pool2_ec_file)
 	{
-		// Turn on the probes
-		tds_probes.write_value(gpio::line_value_pair(pins::TDS_PROBE_RELAY, false));
+		log_debug("thread %d measure_tds started.", gettid());
 
-		// The sampling interval is 8 times in a second, see datarate parameters in
-		// https://github.com/visuve/SykeroLabs3/wiki/Operating-system-configuration#full-bootfirmwareconfigtxt
-		// With 250ms there should be at least 2 samples available
-		std::this_thread::sleep_for(std::chrono::milliseconds(250));
+		constexpr gpio::line_value_pair PROBES_ON(pins::TDS_PROBE_RELAY, false);
+		constexpr gpio::line_value_pair PROBES_OFF(pins::TDS_PROBE_RELAY, true);
 
-		tds_values[0] = io::value_from_file<uint32_t>(pool1_ec_file) / 10; // microsiemens per centimeter
-		tds_values[1] = io::value_from_file<uint32_t>(pool2_ec_file) / 10; // microsiemens per centimeter
+		try
+		{
+			std::stop_token stop_token = stop_source.get_token();
+			mem::clear(tds_values);
 
-		// Turn off the probes to save energy
-		tds_probes.write_value(gpio::line_value_pair(pins::TDS_PROBE_RELAY, true));
+			do 
+			{
+				tds_probe_relay.write_value(PROBES_ON);
+
+				// The sampling interval is 8 times in a second, see datarate parameters in
+				// https://github.com/visuve/SykeroLabs3/wiki/Operating-system-configuration#full-bootfirmwareconfigtxt
+				std::this_thread::sleep_for(TDS_PROBE_WAKEUP_DELAY);
+
+				tds_values[0] = io::value_from_file<uint32_t>(pool1_ec_file) / 10; // microsiemens per centimeter
+				tds_values[1] = io::value_from_file<uint32_t>(pool2_ec_file) / 10; // microsiemens per centimeter
+
+				tds_probe_relay.write_value(PROBES_OFF);
+
+				// Sleep/wait for the next measurement
+				for (std::chrono::seconds i(0); i < TDS_READ_INTERVAL && !stop_token.stop_requested(); ++i)
+				{
+					std::this_thread::yield();
+					std::this_thread::sleep_for(std::chrono::seconds(1));
+				}
+
+			} while (!stop_token.stop_requested());
+
+		}
+		catch (const std::system_error& e)
+		{
+			log_critical("std::system_error: %s", e.what());
+		}
+		catch (const std::exception& e)
+		{
+			log_critical("std::exception: %s", e.what());
+		}
+
+		log_debug("thread %d measure_tds stopped.", gettid());
 	}
 
 	void toggle_irrigation(const gpio::line_group& irrigation_pumps, int minute)
@@ -359,6 +389,7 @@ namespace sl
 
 		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, common_stop_source, std::cref(water_level_sensors));
 		std::jthread fan_measurement_thread(measure_fans, common_stop_source, std::cref(fan_tachometers));
+		std::jthread tds_measurement_thread(measure_tds, common_stop_source, std::cref(tds_probe_relay), std::ref(pool1_ec_file), std::ref(pool2_ec_file));
 
 		std::stop_token stop_token = common_stop_source.get_token();
 
@@ -386,8 +417,6 @@ namespace sl
 				adjust_fans(fan_relay, fan_pwm, air_temperature);
 			}
 
-			measure_tds(tds_probe_relay, pool1_ec_file, pool2_ec_file);
-
 			csv.append_row(
 				time::datetime_string(),
 				cpu_temperature,
@@ -402,8 +431,8 @@ namespace sl
 				duty_percent,
 				fan_rpms[0].load(),
 				fan_rpms[1].load(),
-				tds_values[0],
-				tds_values[1]);
+				tds_values[0].load(),
+				tds_values[1].load());
 		}
 
 		// Turn off relays on exit
