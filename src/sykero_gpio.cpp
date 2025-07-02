@@ -53,7 +53,7 @@ namespace sl::gpio
 		return file_descriptor::read_value(event);
 	}
 
-	void line_group::write_values(std::span<line_value_pair> data) const
+	void line_group::write_values(std::span<const line_value_pair> data) const
 	{
 		assert(data.size() <= _offsets.size());
 

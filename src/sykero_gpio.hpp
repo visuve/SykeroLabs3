@@ -37,7 +37,7 @@ namespace sl::gpio
 		void read_value(line_value_pair& lvp) const;
 		bool read_event(gpio_v2_line_event& event) const;
 
-		void write_values(std::span<line_value_pair> data) const;
+		void write_values(std::span<const line_value_pair> data) const;
 		void write_value(const line_value_pair& lvp) const;
 
 		template <typename Rep, typename Period>

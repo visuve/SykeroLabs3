@@ -200,7 +200,7 @@ namespace sl
 		const bool pump1 = minute % 10 == 0;
 		const bool pump2 = minute % 10 == 5;
 
-		std::array<gpio::line_value_pair, 2> states =
+		const std::array<gpio::line_value_pair, 2> states =
 		{
 			gpio::line_value_pair(pins::PUMP_1_RELAY, !pump1),
 			gpio::line_value_pair(pins::PUMP_2_RELAY, !pump2),
@@ -212,7 +212,7 @@ namespace sl
 
 	void adjust_fans(const gpio::line_group& fan_relay, pwm::chip& pwm, float temperature)
 	{
-		gpio::line_value_pair state(pins::FAN_RELAY, !(temperature > MIN_FAN_TOGGLE_CELCIUS));
+		const gpio::line_value_pair state(pins::FAN_RELAY, !(temperature > MIN_FAN_TOGGLE_CELCIUS));
 
 		if (temperature <= MIN_FAN_TOGGLE_CELCIUS)
 		{
