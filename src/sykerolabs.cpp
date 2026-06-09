@@ -15,7 +15,7 @@ namespace sl
 	std::array<bool, PUMP_COUNT> pump_states;
 	std::array<std::atomic<bool>, WATER_LEVEL_SENSOR_COUNT> water_level_sensor_states;
 	std::array<std::atomic<uint16_t>, FAN_COUNT> fan_rpms;
-	std::array<std::atomic<uint32_t>, TDS_PROBE_COUNT> tds_values;
+	std::array<snapshot<uint32_t, BASE_DECI>, TDS_PROBE_COUNT> tds_values; // base value is decisiemens per centimeter, convert to microsiemens per centimeter
 
 	float duty_percent = DUTY_PERCENTAGE_MIN;
 
@@ -159,7 +159,6 @@ namespace sl
 		try
 		{
 			std::stop_token stop_token = stop_source.get_token();
-			mem::clear(tds_values);
 
 			do 
 			{
@@ -169,8 +168,8 @@ namespace sl
 				// https://github.com/visuve/SykeroLabs3/wiki/Operating-system-configuration#full-bootfirmwareconfigtxt
 				std::this_thread::sleep_for(TDS_PROBE_WAKEUP_DELAY);
 
-				tds_values[0] = io::value_from_file<uint32_t>(pool1_ec_file) / 10; // microsiemens per centimeter
-				tds_values[1] = io::value_from_file<uint32_t>(pool2_ec_file) / 10; // microsiemens per centimeter
+				tds_values[0].parse(io::peek_some(pool1_ec_file)).commit();
+				tds_values[1].parse(io::peek_some(pool2_ec_file)).commit();
 
 				tds_probe_relay.write_value(PROBES_OFF);
 
@@ -397,14 +396,17 @@ namespace sl
 		log_debug("main loop %d started.", gettid());
 
 		// This is basically a 10 min average; I do not want the fans to toggle on and off possibly every minute
-		rolling_average<float, 10> air_temperature;
+		rolling_average<10, float, BASE_MILLI> air_temperature; // base value is millicelcius, convert to celcius
+		snapshot<float, BASE_MILLI> cpu_temperature; // base value is millicelcius, convert to celcius
+		snapshot<float> air_humidity; // relative percent
+		snapshot<float> air_pressure; // hectopascal
 
 		for (int minute = time::local_time().tm_min + 1; !stop_token.stop_requested() && time::sleep_until_next_even<std::chrono::minutes>(); ++minute)
 		{
-			const auto cpu_temperature = io::value_from_file<float>(cpu_temp_file) / 1000.0f; // celcius
-			air_temperature.update(io::value_from_file<float>(air_temp_file) / 1000.0f);  // celcius
-			const auto air_humidity = io::value_from_file<float>(air_humidity_file); // relative percent
-			const auto air_pressure = io::value_from_file<float>(air_pressure_file); // hectopascal
+			cpu_temperature.parse(io::peek_some(cpu_temp_file)).commit();
+			air_temperature.parse(io::peek_some(air_temp_file)).commit();
+			air_humidity.parse(io::peek_some(air_humidity_file)).commit();
+			air_pressure.parse(io::peek_some(air_pressure_file)).commit();
 
 			// TODO: reduce unnecessary IO by storing the previous state or something
 			if (time::is_night())
@@ -420,10 +422,10 @@ namespace sl
 
 			csv.append_row(
 				time::datetime_string(),
-				cpu_temperature,
+				cpu_temperature.get(),
 				air_temperature.get(),
-				air_humidity,
-				air_pressure,
+				air_humidity.get(),
+				air_pressure.get(),
 				water_level_sensor_states[0].load() ? STR_HIGH : STR_LOW,
 				water_level_sensor_states[1].load() ? STR_HIGH : STR_LOW,
 				pump_states[0] ? STR_ON : STR_OFF,
@@ -432,8 +434,8 @@ namespace sl
 				duty_percent,
 				fan_rpms[0].load(),
 				fan_rpms[1].load(),
-				tds_values[0].load(),
-				tds_values[1].load());
+				tds_values[0].get(),
+				tds_values[1].get());
 		}
 
 		// Turn off relays on exit

@@ -104,30 +104,20 @@ namespace sl::io
 		void close();
 	};
 
-	template<typename T>
-	concept Arithmetic = std::is_arithmetic_v<T>;
-	template <Arithmetic T>
-	T value_from_file(const io::file_descriptor& file)
+	template <size_t N = 32>
+	inline std::string peek_some(const io::file_descriptor& file)
 	{
-		char buffer[0x40];
+		char buffer[N];
 
 		size_t bytes_read = file.read_text(buffer);
 
 		if (!bytes_read)
 		{
-			throw std::runtime_error("failed to read");
+			throw std::runtime_error("no data");
 		}
 
 		file.reposition(0);
 
-		T value;
-		std::from_chars_result result = std::from_chars(buffer, buffer + bytes_read, value);
-
-		if (result.ec != std::errc())
-		{
-			throw std::runtime_error("failed to convert value from file");
-		}
-
-		return value;
+		return std::string(buffer, bytes_read);
 	}
 }

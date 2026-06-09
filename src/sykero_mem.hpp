@@ -48,14 +48,14 @@ namespace sl::mem
 		}
 	}
 
-	template <size_t FromSize, size_t ToSize, typename T>
-	constexpr void join(const T(&from)[FromSize], T(&to)[ToSize])
+	template <size_t FS, size_t TS, typename T>
+	constexpr void join(const T(&from)[FS], T(&to)[TS])
 	{
-		static_assert(FromSize < ToSize, "Join from smaller to larger array. Otherwise use mem::clone.");
+		static_assert(FS < TS, "Join from smaller to larger array. Otherwise use mem::clone.");
 
-		constexpr size_t offset = ToSize - FromSize;
+		constexpr size_t offset = TS - FS;
 
-		for (size_t i = 0; i < FromSize; ++i)
+		for (size_t i = 0; i < FS; ++i)
 		{
 			to[i + offset] = from[i];
 		}
