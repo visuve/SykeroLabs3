@@ -7,6 +7,7 @@
 #include "sykero_log.hpp"
 #include "sykero_csv.hpp"
 #include "sykero_time.hpp"
+#include "sykero_props.hpp"
 
 namespace sl
 {
@@ -396,12 +397,12 @@ namespace sl
 		log_debug("main loop %d started.", gettid());
 
 		// This is basically a 10 min average; I do not want the fans to toggle on and off possibly every minute
-		average<float, 10> air_temperature;
+		rolling_average<float, 10> air_temperature;
 
 		for (int minute = time::local_time().tm_min + 1; !stop_token.stop_requested() && time::sleep_until_next_even<std::chrono::minutes>(); ++minute)
 		{
 			const auto cpu_temperature = io::value_from_file<float>(cpu_temp_file) / 1000.0f; // celcius
-			air_temperature = io::value_from_file<float>(air_temp_file) / 1000.0f;  // celcius
+			air_temperature.update(io::value_from_file<float>(air_temp_file) / 1000.0f);  // celcius
 			const auto air_humidity = io::value_from_file<float>(air_humidity_file); // relative percent
 			const auto air_pressure = io::value_from_file<float>(air_pressure_file); // hectopascal
 
@@ -414,13 +415,13 @@ namespace sl
 			else
 			{
 				toggle_irrigation(irrigation_pumps, minute);
-				adjust_fans(fan_relay, fan_pwm, air_temperature);
+				adjust_fans(fan_relay, fan_pwm, air_temperature.get());
 			}
 
 			csv.append_row(
 				time::datetime_string(),
 				cpu_temperature,
-				air_temperature.value(),
+				air_temperature.get(),
 				air_humidity,
 				air_pressure,
 				water_level_sensor_states[0].load() ? STR_HIGH : STR_LOW,
