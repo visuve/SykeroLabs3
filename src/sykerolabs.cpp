@@ -7,7 +7,7 @@
 #include "sykero_log.hpp"
 #include "sykero_csv.hpp"
 #include "sykero_time.hpp"
-#include "sykero_props.hpp"
+#include "sykero_mppt.hpp"
 
 namespace sl
 {
@@ -195,6 +195,58 @@ namespace sl
 		log_debug("thread %d measure_tds stopped.", gettid());
 	}
 
+	void monitor_mppt(std::stop_source stop_source, mppt::controller& mppt)
+	{
+		log_debug("thread %d monitor_mppt started.", gettid());
+
+		try
+		{
+			std::stop_token stop_token = stop_source.get_token();
+			std::array<uint8_t, MAX_SERIAL_BUFFER_SIZE> buffer;
+			std::chrono::steady_clock::time_point last_valid_block = std::chrono::steady_clock::now();
+			std::chrono::steady_clock::time_point last_warning = last_valid_block - std::chrono::minutes(1);
+
+			while (!stop_token.stop_requested())
+			{
+				auto data = mppt.read_serial(buffer);
+
+				if (data.empty())
+				{
+					std::this_thread::yield();
+					continue;
+				}
+
+				// I do not care about millisecond precision here, so this can be called before parsing the block
+				const auto now = std::chrono::steady_clock::now();
+
+				if (mppt.parse(data))
+				{
+					last_valid_block = now;
+				}
+
+				const auto since_valid = now - last_valid_block;
+				const auto since_warning = now - last_warning;
+
+				if (since_valid >= std::chrono::minutes(1) && since_warning >= std::chrono::minutes(1))
+				{
+					const auto minutes = std::chrono::duration_cast<std::chrono::minutes>(since_valid);
+					log_warning("no valid block received since %lld minutes", minutes.count());
+					last_warning = now;
+				}
+			} 
+		}
+		catch (const std::system_error& e)
+		{
+			log_critical("std::system_error: %s", e.what());
+		}
+		catch (const std::exception& e)
+		{
+			log_critical("std::exception: %s", e.what());
+		}
+
+		log_debug("thread %d monitor_mppt stopped.", gettid());
+	}
+
 	void toggle_irrigation(const gpio::line_group& irrigation_pumps, int minute)
 	{
 		const bool pump1 = minute % 10 == 0;
@@ -283,14 +335,32 @@ namespace sl
 		}
 
 		const std::string error_message = 
-			"Device " + std::string(expected_name) + " not found in /sys/bus/iio/devices/iio:device*";
+			std::format("Device {} not found in /sys/bus/iio/devices/iio:device*", expected_name);
+
+		throw std::runtime_error(error_message);
+	}
+
+	std::filesystem::path find_mppt_device(std::string_view manufacturer)
+	{
+		for (const auto& entry : std::filesystem::directory_iterator("/dev/serial/by-id/"))
+		{
+			const std::string name = entry.path().filename().string();
+
+			if (name.find(manufacturer) != std::string::npos)
+			{
+				return entry.path();
+			}
+		}
+
+		const std::string error_message = 
+			std::format("No device by {} found in /dev/serial/by-id/", manufacturer);
 
 		throw std::runtime_error(error_message);
 	}
 
 	void run()
 	{
-		csv::file<15u> csv(csv_file_timestamped_path(),
+		csv::file<24u> csv(csv_file_timestamped_path(),
 		{
 			"Time",
 			"CPU Temperature",
@@ -306,7 +376,16 @@ namespace sl
 			"Fan 1 Speed",
 			"Fan 2 Speed",
 			"Pool 1 EC",
-			"Pool 2 EC"
+			"Pool 2 EC",
+			"Battery Voltage",
+			"Battery Current",
+			"Panel Voltage",
+			"Panel Power",
+			"MPPT Load",
+			"MPPT State",
+			"MPPT Error",
+			"MPPT Yield",
+			"MPPT Daily Best"
 		});
 
 		const auto rotate_csv = [&]()
@@ -379,6 +458,7 @@ namespace sl
 
 		const std::filesystem::path bme680_path = find_iio_device("bme680");
 		const std::filesystem::path ads1115_path = find_iio_device("ads1015"); // ADS1015 and ADS1115 use the same driver
+		const std::filesystem::path mppt_path = find_mppt_device("victron");
 
 		io::file_descriptor cpu_temp_file(sl::paths::CPU_TEMPERATURE);
 		io::file_descriptor air_temp_file(bme680_path / "in_temp_input");
@@ -386,10 +466,12 @@ namespace sl
 		io::file_descriptor air_pressure_file(bme680_path / "in_pressure_input");
 		io::file_descriptor pool1_ec_file(ads1115_path / "in_voltage0_raw");
 		io::file_descriptor pool2_ec_file(ads1115_path / "in_voltage1_raw");
+		mppt::controller mppt(mppt_path);
 
 		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, common_stop_source, std::cref(water_level_sensors));
 		std::jthread fan_measurement_thread(measure_fans, common_stop_source, std::cref(fan_tachometers));
 		std::jthread tds_measurement_thread(measure_tds, common_stop_source, std::cref(tds_probe_relay), std::ref(pool1_ec_file), std::ref(pool2_ec_file));
+		std::jthread mppt_monitoring_thread(monitor_mppt, common_stop_source, std::ref(mppt));
 
 		std::stop_token stop_token = common_stop_source.get_token();
 
@@ -435,7 +517,16 @@ namespace sl
 				fan_rpms[0].load(),
 				fan_rpms[1].load(),
 				tds_values[0].get(),
-				tds_values[1].get());
+				tds_values[1].get(),
+				mppt.battery_voltage.get(),
+				mppt.battery_current.get(),
+				mppt.panel_voltage.get(),
+				mppt.panel_power.get(),
+				mppt.load_current.get(),
+				mppt.state.get(),
+				mppt.error.get(),
+				mppt.yield_total.get(),
+				mppt.max_power_today.get());
 		}
 
 		// Turn off relays on exit

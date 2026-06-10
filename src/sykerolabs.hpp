@@ -47,6 +47,9 @@ namespace sl
 	constexpr float DUTY_PERCENTAGE_MIN = 0.0f;
 	constexpr float DUTY_PERCENTAGE_MAX = 100.0f;
 
+	constexpr size_t MAX_SERIAL_BUFFER_SIZE = 256;
+	constexpr size_t MAX_SERIAL_STRING_LENGTH = 32;
+
 	// Fans use 25kHz https://www.mouser.com/pdfDocs/San_Ace_EPWMControlFunction.pdf
 	// https://noctua.at/pub/media/wysiwyg/Noctua_PWM_specifications_white_paper.pdf
 	constexpr float FAN_PWM_CONTROL_FREQUENCY = 25000.0f;

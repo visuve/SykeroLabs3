@@ -1,12 +1,10 @@
 #include "mega.pch"
+#include "sykerolabs.hpp"
 #include "sykero_mppt.hpp"
 #include "sykero_log.hpp"
 
 namespace sl::mppt
 {
-	constexpr size_t MAX_BUFFER_SIZE = 256;
-	constexpr size_t MAX_STRING_LENGTH = 32;
-
 	constexpr char DELIM_LF = '\n';
 	constexpr char DELIM_CR = '\r';
 	constexpr char DELIM_TAB = '\t';
@@ -24,13 +22,12 @@ namespace sl::mppt
 			{ "IL", &load_current },
 			{ "CS", &state },
 			{ "ERR", &error },
-			{ "MPPT", &tracker_mode},
 			{ "H19", &yield_total},
 			{ "H21", &max_power_today }
 		})
 	{
-		_key.reserve(MAX_STRING_LENGTH);
-		_value.reserve(MAX_STRING_LENGTH);
+		_key.reserve(MAX_SERIAL_STRING_LENGTH);
+		_value.reserve(MAX_SERIAL_STRING_LENGTH);
 
 		struct termios options;
 		mem::clear(options);
@@ -54,46 +51,47 @@ namespace sl::mppt
 		}
 	}
 
-	void controller::update()
+	std::span<uint8_t> controller::read_serial(std::span<uint8_t> buffer)
 	{
-		std::array<uint8_t, MAX_BUFFER_SIZE> chunk;
-
-		while (poll(std::chrono::milliseconds(0), POLLIN))
+		if (!poll(std::chrono::milliseconds(100), POLLIN))
 		{
-			size_t bytes_read = read(chunk.data(), chunk.size());
+			return std::span<uint8_t>();
+		}
 
-			if (bytes_read <= 0)
-			{
-				break;
-			}
+		size_t bytes_read = read(buffer.data(), buffer.size());
 
-			for (size_t i = 0; i < bytes_read; ++i)
+		return { buffer.data(), bytes_read };
+	}
+
+	bool controller::parse(std::span<uint8_t> data)
+	{
+		for (const auto& byte : data)
+		{
+			switch (advance(byte))
 			{
-				switch (advance(chunk[i]))
+				case frame_event::PENDING:
 				{
-					case frame_event::PENDING:
-					{
-						continue;
-					}
-					case frame_event::PAIR_READY:
-					{
-						parse_pair();
-						break;
-					}
-					case frame_event::BLOCK_READY:
-					{
-						commit_block();
-						break;
-					}
-					case frame_event::CHECKSUM_MISMATCH:
-					{
-						log_warning("checksum mismatch at: {0}", i);
-						undo_block();
-						break;
-					}
+					break;
+				}
+				case frame_event::PAIR_READY:
+				{
+					parse_pair();
+					break;
+				}
+				case frame_event::BLOCK_READY:
+				{
+					commit_block();
+					return true;
+				}
+				case frame_event::CHECKSUM_MISMATCH:
+				{
+					undo_block();
+					break;
 				}
 			}
 		}
+
+		return false;
 	}
 
 	controller::frame_event controller::advance(uint8_t byte)
@@ -150,7 +148,7 @@ namespace sl::mppt
 		{
 			_key.push_back(static_cast<char>(byte));
 
-			if (_key.length() > MAX_STRING_LENGTH)
+			if (_key.length() > MAX_SERIAL_STRING_LENGTH)
 			{
 				_state = frame_state::DISCARD;
 			}
@@ -173,7 +171,7 @@ namespace sl::mppt
 		{
 			_value.push_back(static_cast<char>(byte));
 
-			if (_value.length() > MAX_STRING_LENGTH)
+			if (_value.length() > MAX_SERIAL_STRING_LENGTH)
 			{
 				_state = frame_state::DISCARD;
 			}

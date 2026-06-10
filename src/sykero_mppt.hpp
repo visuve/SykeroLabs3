@@ -12,7 +12,8 @@ namespace sl::mppt
 		~controller() override = default;
 		SL_NON_COPYABLE(controller);
 
-		void update();
+		std::span<uint8_t> read_serial(std::span<uint8_t> buffer);
+		bool parse(std::span<uint8_t> data);
 
 		snapshot_average<float, BASE_MILLI> battery_voltage;
 		snapshot_average<float, BASE_MILLI> battery_current;
@@ -22,7 +23,6 @@ namespace sl::mppt
 
 		snapshot<int, BASE_NONE> state;
 		snapshot<int, BASE_NONE> error;
-		snapshot<int, BASE_NONE> tracker_mode;
 
 		snapshot<float, BASE_CENTI> yield_total;
 		snapshot<int, BASE_NONE> max_power_today;
