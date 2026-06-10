@@ -10,7 +10,7 @@ jobs:
     - name: Prerequisites
       run: |
         sudo apt update
-        sudo apt install cppcheck clang-18 g++-14 cmake ninja-build
+        sudo apt install cppcheck clang-20 g++-14 cmake ninja-build
 
     - name: Static analysis
       run: |
@@ -27,5 +27,5 @@ jobs:
       run: |
         mkdir -p out/clang
         cd out/clang
-        cmake -G Ninja -DCMAKE_C_COMPILER=/usr/bin/clang-18 -DCMAKE_CXX_COMPILER=/usr/bin/clang++-18 ../..
+        cmake -G Ninja -DCMAKE_C_COMPILER=/usr/bin/clang-20 -DCMAKE_CXX_COMPILER=/usr/bin/clang++-20 ../..
         ninja
