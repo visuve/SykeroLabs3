@@ -340,24 +340,6 @@ namespace sl
 		throw std::runtime_error(error_message);
 	}
 
-	std::filesystem::path find_mppt_device(std::string_view manufacturer)
-	{
-		for (const auto& entry : std::filesystem::directory_iterator("/dev/serial/by-id/"))
-		{
-			const std::string name = entry.path().filename().string();
-
-			if (name.find(manufacturer) != std::string::npos)
-			{
-				return entry.path();
-			}
-		}
-
-		const std::string error_message = 
-			std::format("No device by {} found in /dev/serial/by-id/", manufacturer);
-
-		throw std::runtime_error(error_message);
-	}
-
 	void run()
 	{
 		csv::file<24u> csv(csv_file_timestamped_path(),
@@ -458,7 +440,6 @@ namespace sl
 
 		const std::filesystem::path bme680_path = find_iio_device("bme680");
 		const std::filesystem::path ads1115_path = find_iio_device("ads1015"); // ADS1015 and ADS1115 use the same driver
-		const std::filesystem::path mppt_path = find_mppt_device("victron");
 
 		io::file_descriptor cpu_temp_file(sl::paths::CPU_TEMPERATURE);
 		io::file_descriptor air_temp_file(bme680_path / "in_temp_input");
@@ -466,7 +447,7 @@ namespace sl
 		io::file_descriptor air_pressure_file(bme680_path / "in_pressure_input");
 		io::file_descriptor pool1_ec_file(ads1115_path / "in_voltage0_raw");
 		io::file_descriptor pool2_ec_file(ads1115_path / "in_voltage1_raw");
-		mppt::controller mppt(mppt_path);
+		mppt::controller mppt(sl::paths::SERIAL0);
 
 		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, common_stop_source, std::cref(water_level_sensors));
 		std::jthread fan_measurement_thread(measure_fans, common_stop_source, std::cref(fan_tachometers));

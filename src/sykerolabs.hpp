@@ -30,6 +30,7 @@ namespace sl
 		const std::filesystem::path PWM_CHIP("/sys/class/pwm/pwmchip0");
 		const std::filesystem::path GPIO_CHIP("/dev/gpiochip0");
 #endif
+		const std::filesystem::path SERIAL0("/dev/serial0");
 	}
 
 	constexpr float ABSOLUTE_ZERO = -273.15f;
