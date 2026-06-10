@@ -4,12 +4,12 @@
 
 namespace sl::csv
 {
-	template <size_t Columns>
+	template <size_t COLUMNS>
 	class file final : private io::file_descriptor
 	{
 
 	public:
-		file(const std::filesystem::path& path, const std::array<std::string_view, Columns>& header) :
+		file(const std::filesystem::path& path, const std::array<std::string_view, COLUMNS>& header) :
 			file_descriptor(),
 			_header(header)
 		{
@@ -29,7 +29,7 @@ namespace sl::csv
 				append_value(column_name);
 			}
 
-			size_t file_size = file_descriptor::file_size();
+			const size_t file_size = file_descriptor::file_size();
 
 			if (file_size == 0)
 			{
@@ -38,8 +38,9 @@ namespace sl::csv
 			}
 			else if (file_size < _row.size())
 			{
-				// Malformed header, reopen and truncate
+				// Malformed header, reopen, truncate and write header
 				file_descriptor::open(path, O_WRONLY | O_TRUNC);
+				write_text(_row);
 			}
 
 			_row.clear();
@@ -51,7 +52,7 @@ namespace sl::csv
 		template<typename... Args>
 		void append_row(Args&&... args)
 		{
-			static_assert(sizeof...(Args) == Columns, "too few arguments!");
+			static_assert(sizeof...(Args) == COLUMNS, "too few arguments!");
 
 			std::lock_guard<std::mutex> lock(_mutex);
 
@@ -76,7 +77,7 @@ namespace sl::csv
 				_row += value;
 			}
 
-			if (++_current_column < Columns)
+			if (++_current_column < COLUMNS)
 			{
 				_row += ',';
 			}
@@ -87,7 +88,7 @@ namespace sl::csv
 		}
 
 		std::mutex _mutex;
-		const std::array<std::string_view, Columns> _header;
+		const std::array<std::string_view, COLUMNS> _header;
 		size_t _current_column = 0;
 		std::string _row;
 	};
