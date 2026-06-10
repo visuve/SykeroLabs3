@@ -13,18 +13,18 @@ namespace sl::mppt
 
 	controller::controller(const std::filesystem::path& path) :
 		io::file_descriptor(path, O_RDWR | O_NOCTTY | O_NDELAY),
-		_properties(
+		_properties(std::to_array<std::pair<std::string, property*>>(
 		{
 			{ "V", &battery_voltage },
-			{ "I", &battery_current},
+			{ "I", &battery_current },
 			{ "VPV", &panel_voltage },
-			{ "PPV", &panel_power},
+			{ "PPV", &panel_power },
 			{ "IL", &load_current },
 			{ "CS", &state },
 			{ "ERR", &error },
-			{ "H19", &yield_total},
+			{ "H19", &yield_total },
 			{ "H21", &max_power_today }
-		})
+		}))
 	{
 		_key.reserve(MAX_SERIAL_STRING_LENGTH);
 		_value.reserve(MAX_SERIAL_STRING_LENGTH);

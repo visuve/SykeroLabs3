@@ -58,7 +58,7 @@ namespace sl::mppt
 		void undo_block();
 		void reset();
 
-		std::array<std::pair<std::string, property*>, 10> _properties;
+		std::array<std::pair<std::string, property*>, 9> _properties;
 		frame_state _state = frame_state::HEADER;
 		std::string _key;
 		std::string _value;
