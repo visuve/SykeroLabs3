@@ -12,7 +12,7 @@ namespace sl::mppt
 	constexpr char KEY_CHECKSUM[] = "Checksum";
 
 	controller::controller(const std::filesystem::path& path) :
-		io::file_descriptor(path, O_RDWR | O_NOCTTY | O_NDELAY),
+		io::file_descriptor(path, O_RDONLY | O_NOCTTY | O_NDELAY),
 		_properties(std::to_array<std::pair<std::string, property*>>(
 		{
 			{ "V", &battery_voltage },
@@ -29,26 +29,35 @@ namespace sl::mppt
 		_key.reserve(MAX_SERIAL_STRING_LENGTH);
 		_value.reserve(MAX_SERIAL_STRING_LENGTH);
 
-		struct termios options;
-		mem::clear(options);
+		// get existing options
+		termios options = tcgetattr();
 
-		if (ioctl(TCGETS, &options) < 0)
-		{
-			throw std::runtime_error("failed to get termios");
-		}
+		// make raw not to omit any bytes
+		cfmakeraw(&options);
 
+		// set speed for write too to make sure options is well-formed
 		cfsetispeed(&options, B19200);
 		cfsetospeed(&options, B19200);
 
-		options.c_cflag |= (CLOCAL | CREAD | CS8);
-		options.c_cflag &= ~(PARENB | CSTOPB | CSIZE);
-		options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
-		options.c_oflag &= ~OPOST;
+		// 8 data bits, no parity, 1 stop bit
+		options.c_cflag &= ~PARENB;
+		options.c_cflag &= ~CSTOPB;
+		options.c_cflag &= ~CSIZE;
+		options.c_cflag |= CS8;
 
-		if (ioctl(TCSETS, &options) < 0)
-		{
-			throw std::runtime_error("failed to set termios");
-		}
+		// enable receiver and ignore modem control lines
+		options.c_cflag |= CREAD | CLOCAL;
+
+		// blocking read configuration
+		options.c_cc[VMIN] = 1;
+		options.c_cc[VTIME] = 0;
+
+		// set modified options
+		tcsetattr(options);
+
+		// flush input to discard any partial frames
+		// that may have been received before the options were set
+		tcflush(TCIFLUSH);
 	}
 
 	std::span<uint8_t> controller::read_serial(std::span<uint8_t> buffer)
@@ -70,6 +79,8 @@ namespace sl::mppt
 
 	bool controller::parse(std::span<uint8_t> data)
 	{
+		bool block_ready = false;
+
 		for (const auto& byte : data)
 		{
 			switch (advance(byte))
@@ -86,9 +97,10 @@ namespace sl::mppt
 				case frame_event::BLOCK_READY:
 				{
 					commit_block();
-					return true;
+					block_ready = true;
+					break;
 				}
-				case frame_event::CHECKSUM_MISMATCH:
+				case frame_event::BLOCK_INVALID:
 				{
 					undo_block();
 					break;
@@ -96,7 +108,7 @@ namespace sl::mppt
 			}
 		}
 
-		return false;
+		return block_ready;
 	}
 
 	controller::frame_event controller::advance(uint8_t byte)
@@ -120,13 +132,16 @@ namespace sl::mppt
 
 	controller::frame_event controller::handle_header_byte(uint8_t byte)
 	{
+		_checksum += byte;
+
 		if (byte != DELIM_CR && byte != DELIM_LF)
 		{
 			_state = frame_state::KEY;
-			_checksum = byte;
 			_key.clear();
 			_key.push_back(static_cast<char>(byte));
 			_value.clear();
+			_block_counter++;
+			log_debug("started parsing block #%zu", _block_counter);
 		}
 
 		return frame_event::PENDING;
@@ -187,12 +202,11 @@ namespace sl::mppt
 	controller::frame_event controller::handle_checksum_byte(uint8_t byte)
 	{
 		_checksum += byte;
-		_state = frame_state::HEADER;
 
 		if (_checksum != 0)
 		{
-			_checksum = 0;
-			return frame_event::CHECKSUM_MISMATCH;
+			log_warning("checksum mismatch in block #%zu", _block_counter);
+			return frame_event::BLOCK_INVALID;
 		}
 
 		return frame_event::BLOCK_READY;
@@ -202,7 +216,8 @@ namespace sl::mppt
 	{
 		if (byte == DELIM_LF)
 		{
-			undo_block();
+			log_debug("delimiter error in block #%zu", _block_counter);
+			return frame_event::BLOCK_INVALID;
 		}
 
 		return frame_event::PENDING;
@@ -230,6 +245,7 @@ namespace sl::mppt
 			value->commit();
 		}
 
+		log_debug("parsed block #%zu", _block_counter);
 		reset();
 	}
 
@@ -240,6 +256,7 @@ namespace sl::mppt
 			value->undo();
 		}
 
+		log_debug("discarded block #%zu", _block_counter);
 		reset();
 	}
 

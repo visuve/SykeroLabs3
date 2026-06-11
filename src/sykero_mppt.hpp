@@ -42,7 +42,7 @@ namespace sl::mppt
 			PENDING,
 			PAIR_READY,
 			BLOCK_READY,
-			CHECKSUM_MISMATCH
+			BLOCK_INVALID
 		};
 
 		frame_event advance(uint8_t byte);
@@ -63,5 +63,6 @@ namespace sl::mppt
 		std::string _key;
 		std::string _value;
 		uint8_t _checksum = 0;
+		size_t _block_counter = 0;
 	};
 }
