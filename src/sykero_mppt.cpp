@@ -60,6 +60,11 @@ namespace sl::mppt
 
 		size_t bytes_read = read(buffer.data(), buffer.size());
 
+		if (!bytes_read)
+		{
+			return std::span<uint8_t>();
+		}
+
 		return { buffer.data(), bytes_read };
 	}
 
@@ -112,7 +117,6 @@ namespace sl::mppt
 
 		return frame_event::PENDING;
 	}
-
 
 	controller::frame_event controller::handle_header_byte(uint8_t byte)
 	{
@@ -211,11 +215,12 @@ namespace sl::mppt
 			if (key == _key)
 			{
 				value->parse(_value);
-				_key.clear();
-				_value.clear();
-				return;
+				break;
 			}
 		}
+
+		_key.clear();
+		_value.clear();
 	}
 
 	void controller::commit_block()
