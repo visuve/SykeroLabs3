@@ -77,7 +77,7 @@ namespace sl::mppt
 		return { buffer.data(), bytes_read };
 	}
 
-	bool controller::parse(std::span<uint8_t> data)
+	bool controller::parse(std::span<const uint8_t> data)
 	{
 		bool block_ready = false;
 

@@ -2,16 +2,16 @@
 
 namespace sl::time
 {
-	std::tm local_time(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
+	std::tm local_time(std::chrono::system_clock::time_point time_point = std::chrono::system_clock::now());
 
-	bool is_night(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
+	bool is_night(std::chrono::system_clock::time_point time_point = std::chrono::system_clock::now());
 
-	std::chrono::hh_mm_ss<std::chrono::nanoseconds> time_to_midnight(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
+	std::chrono::hh_mm_ss<std::chrono::nanoseconds> time_to_midnight(std::chrono::system_clock::time_point time_point = std::chrono::system_clock::now());
 
 	std::string time_string(const std::chrono::hh_mm_ss<std::chrono::nanoseconds>& hh_mm_ss);
-	std::string time_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
-	std::string date_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
-	std::string datetime_string(const std::chrono::system_clock::time_point& time_point = std::chrono::system_clock::now());
+	std::string time_string(std::chrono::system_clock::time_point time_point = std::chrono::system_clock::now());
+	std::string date_string(std::chrono::system_clock::time_point time_point = std::chrono::system_clock::now());
+	std::string datetime_string(std::chrono::system_clock::time_point time_point = std::chrono::system_clock::now());
 
 	template <typename Rep, typename Period>
 	constexpr timespec duration_to_timespec(std::chrono::duration<Rep, Period> duration)
@@ -23,7 +23,7 @@ namespace sl::time
 	}
 
 	template <typename T>
-	constexpr T timespec_to_duration(const timespec& spec)
+	constexpr T timespec_to_duration(timespec spec)
 	{
 		auto secs = std::chrono::seconds(spec.tv_sec);
 		auto nanos = std::chrono::nanoseconds(spec.tv_nsec);

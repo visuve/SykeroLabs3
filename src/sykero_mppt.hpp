@@ -13,7 +13,7 @@ namespace sl::mppt
 		SL_NON_COPYABLE(controller);
 
 		std::span<uint8_t> read_serial(std::span<uint8_t> buffer);
-		bool parse(std::span<uint8_t> data);
+		bool parse(std::span<const uint8_t> data);
 
 		snapshot_average<float, BASE_MILLI> battery_voltage;
 		snapshot_average<float, BASE_MILLI> battery_current;

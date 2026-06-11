@@ -19,7 +19,7 @@ namespace sl::log
 		const std::source_location& source,
 		int priority,
 		const char(&format)[N],
-		Args... args)
+		const Args... args)
 	{
 		char prefixed_format[N + 7] = { '%', 's', ':', '%', 'u', ':', ' ' }; // Make clang happy
 		mem::join(format, prefixed_format);

@@ -5,7 +5,7 @@
 
 namespace sl::time
 {
-	std::tm local_time(const std::chrono::system_clock::time_point& time_point)
+	std::tm local_time(std::chrono::system_clock::time_point time_point)
 	{
 		std::time_t tt = std::chrono::system_clock::to_time_t(time_point);
 
@@ -29,13 +29,13 @@ namespace sl::time
 		return tm;
 	}
 
-	bool is_night(const std::chrono::system_clock::time_point& time_point)
+	bool is_night(std::chrono::system_clock::time_point time_point)
 	{
 		std::tm tm = local_time(time_point);
 		return tm.tm_hour >= 22 || tm.tm_hour <= 8;
 	}
 
-	std::chrono::hh_mm_ss<std::chrono::nanoseconds> time_to_midnight(const std::chrono::system_clock::time_point& time_point)
+	std::chrono::hh_mm_ss<std::chrono::nanoseconds> time_to_midnight(std::chrono::system_clock::time_point time_point)
 	{
 		// TODO: use std::chrono::zoned_time when available
 		auto time_zone_adjusted = time_point + std::chrono::seconds(local_time(time_point).tm_gmtoff);
@@ -48,7 +48,7 @@ namespace sl::time
 
 	template <size_t FS, size_t ES>
 	std::string to_string(
-		const std::chrono::system_clock::time_point& time_point,
+		std::chrono::system_clock::time_point time_point,
 		const char(&format)[FS],
 		const char(&)[ES])
 	{
@@ -89,17 +89,17 @@ namespace sl::time
 		return time_stamp;
 	}
 
-	std::string time_string(const std::chrono::system_clock::time_point& time_point)
+	std::string time_string(std::chrono::system_clock::time_point time_point)
 	{
 		return to_string(time_point, "%T", "16:45:18");
 	}
 
-	std::string date_string(const std::chrono::system_clock::time_point& time_point)
+	std::string date_string(std::chrono::system_clock::time_point time_point)
 	{
 		return to_string(time_point, "%F", "2024-02-28");
 	}
 
-	std::string datetime_string(const std::chrono::system_clock::time_point& time_point)
+	std::string datetime_string(std::chrono::system_clock::time_point time_point)
 	{
 		return to_string(time_point, "%FT%T", "2024-02-28T16:45:18");
 	}
