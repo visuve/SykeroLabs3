@@ -92,16 +92,16 @@ namespace sl
 
 			if (!_count)
 			{
-				throw std::logic_error("cannot calculate the moving average of zero samples");
+				return static_cast<T>(0);
 			}
 
-			T sum = T(0);
+			T sum = static_cast<T>(0);
 
 			for (size_t i = 0; i < _count; ++i)
 			{
 				sum += _buffer[i];
 			}
-			
+
 			return sum / static_cast<T>(_count);
 		}
 
@@ -138,14 +138,12 @@ namespace sl
 		{
 			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
 
-			if (!_count)
+			if (_count)
 			{
-				throw std::logic_error("cannot calculate the sample average of zero samples");
+				_last = _sum / static_cast<T>(_count);
+				_sum = static_cast<T>(0);
+				_count = 0;
 			}
-
-			_last = _sum / static_cast<T>(_count);
-			_sum = static_cast<T>(0);
-			_count = 0;
 			
 			return _last;
 		}
