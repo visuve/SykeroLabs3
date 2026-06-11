@@ -140,6 +140,35 @@ namespace sl::io
 		}
 	}
 
+	struct termios file_descriptor::tcgetattr() const
+	{
+		struct termios options;
+		mem::clear(options);
+
+		if (::tcgetattr(_descriptor, &options) < 0)
+		{
+			throw std::system_error(errno, std::system_category(), "tcgetattr");
+		}
+		
+		return options;
+	}
+
+	void file_descriptor::tcsetattr(const struct termios& options, int actions) const
+	{
+		if (::tcsetattr(_descriptor, actions, &options) < 0)
+		{
+			throw std::system_error(errno, std::system_category(), "tcsetattr");
+		}
+	}
+
+	void file_descriptor::tcflush(int queue_selector) const
+	{
+		if (::tcflush(_descriptor, queue_selector) < 0)
+		{
+			throw std::system_error(errno, std::system_category(), "tcflush");
+		}
+	}
+
 	void file_descriptor::close()
 	{
 		if (_descriptor <= 0)

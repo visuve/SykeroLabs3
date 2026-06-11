@@ -97,6 +97,12 @@ namespace sl::io
 
 		void fsync() const;
 
+		struct termios tcgetattr() const;
+
+		void tcsetattr(const struct termios& options, int actions = TCSANOW) const;
+
+		void tcflush(int queue_selector) const;
+
 	private:
 		int _descriptor = 0;
 		__mode_t _mode = 0;
