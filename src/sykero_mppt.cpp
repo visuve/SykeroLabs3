@@ -11,9 +11,8 @@ namespace sl::mppt
 
 	constexpr char KEY_CHECKSUM[] = "Checksum";
 
-	controller::controller(const std::filesystem::path& path) :
-		io::file_descriptor(path, O_RDONLY | O_NOCTTY | O_NDELAY),
-		_properties(std::to_array<std::pair<std::string, property*>>(
+	mppt_properties::mppt_properties() :
+		prop_map(std::to_array<std::pair<std::string, property*>>(
 		{
 			{ "V", &battery_voltage },
 			{ "I", &battery_current },
@@ -25,6 +24,11 @@ namespace sl::mppt
 			{ "H19", &yield_total },
 			{ "H21", &max_power_today }
 		}))
+	{
+	}
+
+	controller::controller(const std::filesystem::path& path) :
+		io::file_descriptor(path, O_RDONLY | O_NOCTTY | O_NDELAY)
 	{
 		_key.reserve(MAX_SERIAL_STRING_LENGTH);
 		_value.reserve(MAX_SERIAL_STRING_LENGTH);
@@ -225,7 +229,9 @@ namespace sl::mppt
 
 	void controller::parse_pair()
 	{
-		for (const auto& [key, value] : _properties)
+		auto md = mppt_data.acquire();
+
+		for (const auto& [key, value] : md->prop_map)
 		{
 			if (key == _key)
 			{
@@ -240,7 +246,9 @@ namespace sl::mppt
 
 	void controller::commit_block()
 	{
-		for (const auto& [_, value] : _properties)
+		auto md = mppt_data.acquire();
+
+		for (const auto& [_, value] : md->prop_map)
 		{
 			value->commit();
 		}
@@ -251,7 +259,9 @@ namespace sl::mppt
 
 	void controller::undo_block()
 	{
-		for (const auto& [_, value] : _properties)
+		auto md = mppt_data.acquire();
+
+		for (const auto& [_, value] : md->prop_map)
 		{
 			value->undo();
 		}

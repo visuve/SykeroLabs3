@@ -40,11 +40,7 @@ namespace sl
 
 	constexpr int INVALID_MINUTE = -1;
 
-	constexpr size_t PUMP_COUNT = 2;
-	constexpr size_t WATER_LEVEL_SENSOR_COUNT = 2;
-	constexpr size_t FAN_COUNT = 2;
-	constexpr size_t TDS_PROBE_COUNT = 2;
-
+	constexpr float DUTY_PERCENTAGE_INVALID = -1.0f;
 	constexpr float DUTY_PERCENTAGE_MIN = 0.0f;
 	constexpr float DUTY_PERCENTAGE_MAX = 100.0f;
 

@@ -12,32 +12,94 @@
 namespace sl
 {
 	std::stop_source common_stop_source;
-	std::array<bool, PUMP_COUNT> pump_states;
-	std::array<std::atomic<bool>, WATER_LEVEL_SENSOR_COUNT> water_level_sensor_states;
-	std::array<std::atomic<uint16_t>, FAN_COUNT> fan_rpms;
-	std::array<snapshot<uint32_t, BASE_DECI>, TDS_PROBE_COUNT> tds_values; // base value is decisiemens per centimeter, convert to microsiemens per centimeter
 
-	float duty_percent = DUTY_PERCENTAGE_MIN;
-
-	void monitor_water_level_sensors(std::stop_source stop_source, const gpio::line_group& water_level_sensors)
+	struct pump_properties
 	{
-		log_debug("thread %d monitor_water_level_sensors started.", gettid());
+		bool pump1 = false;
+		bool pump2 = false;
+	};
+
+	struct float_switch_properties
+	{
+		bool sensor1 = false;
+		bool sensor2 = false;
+
+		void save(uint32_t offset, uint32_t identifier)
+		{
+			uint32_t index = offset - pins::WATER_LEVEL_SENSOR_1;
+			bool state = identifier == GPIO_V2_LINE_EVENT_RISING_EDGE ? true : false;
+
+			switch (index)
+			{
+			case 0:
+				sensor1 = state;
+				break;
+			case 1:
+				sensor2 = state;
+				break;
+			default:
+				log_error("invalid identifier %u", index);
+				return;
+			}
+
+			log_notice("float switch %zu changed to %s.", ++index, state ? "high" : "low");
+		}
+	};
+
+	struct fan_properties
+	{
+		uint32_t fan1_rpm = 0;
+		uint32_t fan2_rpm = 0;
+
+		void save(uint32_t index, uint32_t rpm)
+		{
+			switch (index)
+			{
+			case 0:
+				fan1_rpm = rpm;
+				break;
+			case 1:
+				fan2_rpm = rpm;
+				break;
+			default:
+				log_error("invalid fan index %zu", index);
+				return;
+			}
+		}
+	};
+
+	struct tds_properties
+	{
+		// base value is decisiemens per centimeter, convert to microsiemens per centimeter
+		snapshot<uint32_t, BASE_DECI> pool1;
+		snapshot<uint32_t, BASE_DECI> pool2;
+	};
+
+	property_group<pump_properties> pump_data;
+	property_group<float_switch_properties> float_switch_data;
+	property_group<fan_properties> fan_data;
+	property_group<tds_properties> tds_data;
+
+	void monitor_float_switches(std::stop_source stop_source, const gpio::line_group& float_switches)
+	{
+		log_debug("thread %d monitor_float_switches started.", gettid());
 
 		try
 		{
 			std::stop_token stop_token = stop_source.get_token();
 
 			{
-				std::array<gpio::line_value_pair, WATER_LEVEL_SENSOR_COUNT> data =
+				std::array<gpio::line_value_pair, 2> data =
 				{
 					gpio::line_value_pair(pins::WATER_LEVEL_SENSOR_1),
 					gpio::line_value_pair(pins::WATER_LEVEL_SENSOR_2)
 				};
 
-				water_level_sensors.read_values(data);
+				float_switches.read_values(data);
 
-				water_level_sensor_states[0] = data[0].value;
-				water_level_sensor_states[1] = data[1].value;
+				auto fsd = float_switch_data.acquire();
+				fsd->sensor1 = data[0].value;
+				fsd->sensor2 = data[1].value;
 			}
 
 			gpio_v2_line_event event;
@@ -45,21 +107,10 @@ namespace sl
 
 			while (!stop_token.stop_requested())
 			{
-				while (water_level_sensors.poll(std::chrono::milliseconds(100)) && water_level_sensors.read_event(event))
+				while (float_switches.poll(std::chrono::milliseconds(100)) && float_switches.read_event(event))
 				{
-					assert(event.id == GPIO_V2_LINE_EVENT_RISING_EDGE || event.id == GPIO_V2_LINE_EVENT_FALLING_EDGE);
-
-					size_t sensor_index = event.offset - pins::WATER_LEVEL_SENSOR_1;
-
-					assert(sensor_index < WATER_LEVEL_SENSOR_COUNT);
-
-					auto& water_level_sensor_state = water_level_sensor_states[sensor_index];
-
-					water_level_sensor_state = event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? true : false;
-
-					log_notice("water level sensor %zu changed to %s.",
-						++sensor_index,
-						event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? "high" : "low");
+					auto fsd = float_switch_data.acquire();
+					fsd->save(event.offset, event.id);
 				}
 
 				std::this_thread::yield();
@@ -74,10 +125,10 @@ namespace sl
 			log_critical("std::exception: %s", e.what());
 		}
 
-		log_debug("thread %d monitor_water_level_sensors stopped.", gettid());
+		log_debug("thread %d monitor_float_switches stopped.", gettid());
 	}
 
-	void measure_fans(std::stop_source stop_source, const gpio::line_group& fans)
+	void measure_fans(std::stop_source stop_source, const gpio::line_group& fan_tachometers)
 	{
 		log_debug("thread %d measure_fans started.", gettid());
 
@@ -85,55 +136,33 @@ namespace sl
 		{
 			std::stop_token stop_token = stop_source.get_token();
 
-			mem::clear(fan_rpms);
-
-			std::array<float, FAN_COUNT> revolutions;
-			mem::clear(revolutions);
-
-			std::array<float, FAN_COUNT> measure_start;
-			mem::clear(measure_start);
-
 			gpio_v2_line_event event;
 			mem::clear(event);
 
+			frequency_counter<float, std::chrono::minutes> fan_speeds[2];
+
 			while (!stop_token.stop_requested())
 			{
-				while (fans.poll(std::chrono::milliseconds(100)) && fans.read_event(event))
+				while (fan_tachometers.poll(std::chrono::milliseconds(100)) && fan_tachometers.read_event(event))
 				{
-					assert(event.id == GPIO_V2_LINE_EVENT_RISING_EDGE);
+					const auto time = std::chrono::nanoseconds(event.timestamp_ns);
+					const uint32_t fan_index = event.offset - pins::FAN_1_TACHOMETER;
+					auto& fan_speed = fan_speeds[fan_index];
 
-					size_t fan_index = event.offset - pins::FAN_1_TACHOMETER;
-
-					assert(fan_index < FAN_COUNT);
-
-					if (event.line_seqno % 10 == 1)
+					if (event.line_seqno % 10 != 0)
 					{
-						revolutions[fan_index] = 1.0f;
-						measure_start[fan_index] = event.timestamp_ns;
-						continue;
+						fan_speed.update(time);
 					}
-
-					if (event.line_seqno % 10 == 0)
+					else
 					{
-						float time_taken_ns = float(event.timestamp_ns) - measure_start[fan_index];
-						float revolutions_per_nanoseconds = revolutions[fan_index] / time_taken_ns;
+						const float rpm = fan_speed.get(time);
+						fan_speed.reset();
 
-						constexpr auto nanos_per_minute = static_cast<float>(
-							std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::minutes(1)).count());
-
-						float rpm = nanos_per_minute * revolutions_per_nanoseconds;
-
-						assert(rpm >= 0 && rpm < 0xFFFF);
-
-						fan_rpms[fan_index] = static_cast<uint16_t>(rpm);
-
-						continue;
+						auto fd = fan_data.acquire();
+						fd->save(event.offset, static_cast<uint32_t>(rpm));
 					}
-
-					++revolutions[fan_index];
 				}
 
-				mem::clear(fan_rpms);
 				std::this_thread::yield();
 			}
 		}
@@ -160,7 +189,7 @@ namespace sl
 		{
 			std::stop_token stop_token = stop_source.get_token();
 
-			do 
+			do
 			{
 				tds_probe_relay.write_value(PROBES_ON);
 
@@ -168,8 +197,11 @@ namespace sl
 				// https://github.com/visuve/SykeroLabs3/wiki/Operating-system-configuration#full-bootfirmwareconfigtxt
 				std::this_thread::sleep_for(TDS_PROBE_WAKEUP_DELAY);
 
-				tds_values[0].parse(io::peek_some(pool1_ec_file)).commit();
-				tds_values[1].parse(io::peek_some(pool2_ec_file)).commit();
+				{
+					auto tds = tds_data.acquire();
+					tds->pool1.parse(io::peek_some(pool1_ec_file)).commit();
+					tds->pool2.parse(io::peek_some(pool2_ec_file)).commit();
+				}
 
 				tds_probe_relay.write_value(PROBES_OFF);
 
@@ -259,11 +291,16 @@ namespace sl
 		};
 
 		irrigation_pumps.write_values(states);
-		pump_states = { pump1, pump2 };
+
+		auto pumps = pump_data.acquire();
+		pumps->pump1 = pump1;
+		pumps->pump2 = pump2;
 	}
 
-	void adjust_fans(const gpio::line_group& fan_relay, pwm::chip& pwm, float temperature)
+	float adjust_fans(const gpio::line_group& fan_relay, pwm::chip& pwm, float temperature)
 	{
+		float duty_percent = DUTY_PERCENTAGE_INVALID;
+
 		const gpio::line_value_pair state(pins::FAN_RELAY, !(temperature > MIN_FAN_TOGGLE_CELCIUS));
 
 		if (temperature <= MIN_FAN_TOGGLE_CELCIUS)
@@ -282,6 +319,8 @@ namespace sl
 
 		pwm.set_duty_percent(duty_percent);
 		fan_relay.write_value(state);
+
+		return duty_percent;
 	}
 
 	void signal_handler(int signal)
@@ -416,7 +455,7 @@ namespace sl
 		gpio::line_group irrigation_pumps =
 			chip.line_group(GPIO_V2_LINE_FLAG_OUTPUT, irrigation_pump_pins);
 
-		gpio::line_group water_level_sensors =
+		gpio::line_group float_switches =
 			chip.line_group(GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EDGE_FALLING,
 				water_level_sensor_pins,
 				WATER_LEVEL_SENSOR_DEBOUNCE);
@@ -449,7 +488,7 @@ namespace sl
 		io::file_descriptor pool2_ec_file(ads1115_path / "in_voltage1_raw");
 		mppt::controller mppt(sl::paths::SERIAL0);
 
-		std::jthread water_level_monitoring_thread(monitor_water_level_sensors, common_stop_source, std::cref(water_level_sensors));
+		std::jthread float_switch_monitoring_thread(monitor_float_switches, common_stop_source, std::cref(float_switches));
 		std::jthread fan_measurement_thread(measure_fans, common_stop_source, std::cref(fan_tachometers));
 		std::jthread tds_measurement_thread(measure_tds, common_stop_source, std::cref(tds_probe_relay), std::ref(pool1_ec_file), std::ref(pool2_ec_file));
 		std::jthread mppt_monitoring_thread(monitor_mppt, common_stop_source, std::ref(mppt));
@@ -464,6 +503,8 @@ namespace sl
 		snapshot<float> air_humidity; // relative percent
 		snapshot<float> air_pressure; // hectopascal
 
+		float duty_percent = DUTY_PERCENTAGE_INVALID;
+
 		for (int minute = time::local_time().tm_min + 1; !stop_token.stop_requested() && time::sleep_until_next_even<std::chrono::minutes>(); ++minute)
 		{
 			cpu_temperature.parse(io::peek_some(cpu_temp_file)).commit();
@@ -475,39 +516,47 @@ namespace sl
 			if (time::is_night())
 			{
 				toggle_irrigation(irrigation_pumps, INVALID_MINUTE);
-				adjust_fans(fan_relay, fan_pwm, ABSOLUTE_ZERO);
+				duty_percent = adjust_fans(fan_relay, fan_pwm, ABSOLUTE_ZERO);
 			}
 			else
 			{
 				toggle_irrigation(irrigation_pumps, minute);
-				adjust_fans(fan_relay, fan_pwm, air_temperature.get());
+				duty_percent = adjust_fans(fan_relay, fan_pwm, air_temperature.get());
 			}
 
-			csv.append_row(
-				time::datetime_string(),
-				cpu_temperature.get(),
-				air_temperature.get(),
-				air_humidity.get(),
-				air_pressure.get(),
-				water_level_sensor_states[0].load() ? STR_HIGH : STR_LOW,
-				water_level_sensor_states[1].load() ? STR_HIGH : STR_LOW,
-				pump_states[0] ? STR_ON : STR_OFF,
-				pump_states[1] ? STR_ON : STR_OFF,
-				duty_percent > DUTY_PERCENTAGE_MIN ? STR_ON : STR_OFF,
-				duty_percent,
-				fan_rpms[0].load(),
-				fan_rpms[1].load(),
-				tds_values[0].get(),
-				tds_values[1].get(),
-				mppt.battery_voltage.get(),
-				mppt.battery_current.get(),
-				mppt.panel_voltage.get(),
-				mppt.panel_power.get(),
-				mppt.load_current.get(),
-				mppt.state.get(),
-				mppt.error.get(),
-				mppt.yield_total.get(),
-				mppt.max_power_today.get());
+			{
+				auto fsd = float_switch_data.acquire();
+				auto pd = pump_data.acquire();
+				auto fd = fan_data.acquire();
+				auto td = tds_data.acquire();
+				auto md = mppt.mppt_data.acquire();
+
+				csv.append_row(
+					time::datetime_string(),
+					cpu_temperature.get(),
+					air_temperature.get(),
+					air_humidity.get(),
+					air_pressure.get(),
+					fsd->sensor1 ? STR_HIGH : STR_LOW,
+					fsd->sensor2 ? STR_HIGH : STR_LOW,
+					pd->pump1 ? STR_ON : STR_OFF,
+					pd->pump2 ? STR_ON : STR_OFF,
+					duty_percent > DUTY_PERCENTAGE_MIN ? STR_ON : STR_OFF,
+					duty_percent,
+					fd->fan1_rpm,
+					fd->fan2_rpm,
+					td->pool1.get(),
+					td->pool2.get(),
+					md->battery_voltage.get(),
+					md->battery_current.get(),
+					md->panel_voltage.get(),
+					md->panel_power.get(),
+					md->load_current.get(),
+					md->state.get(),
+					md->error.get(),
+					md->yield_total.get(),
+					md->max_power_today.get());
+			}
 		}
 
 		// Turn off relays on exit

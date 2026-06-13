@@ -18,6 +18,40 @@ namespace sl
 		virtual ~property() = default;
 	};
 
+	template <typename T>
+	class property_group
+	{
+	public:
+		class lock_ref
+		{
+		public:
+			lock_ref(std::mutex& mutex, T& data) :
+				_lock(mutex),
+				_data(data)
+			{
+			}
+
+			T* operator->()
+			{
+				return &_data;
+			}
+
+		private:
+			std::unique_lock<std::mutex> _lock;
+			T& _data;
+		};
+
+		lock_ref acquire()
+		{
+			return lock_ref(_mutex, _data);
+		}
+
+	private:
+		mutable std::mutex _mutex;
+		T _data;
+
+	};
+
 	template<typename T>
 	concept arithmetic = std::is_arithmetic_v<T>;
 
@@ -32,8 +66,6 @@ namespace sl
 
 		property& parse(std::string_view value) override
 		{ 
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
-
 			T parsed = static_cast<T>(0);
 			auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
 
@@ -47,8 +79,6 @@ namespace sl
 
 		void commit() override
 		{
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
-
 			if (_stage.has_value())
 			{
 				update(_stage.value());
@@ -58,12 +88,10 @@ namespace sl
 
 		void undo() override
 		{
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
 			_stage.reset();
 		}
 
 	protected:
-		std::recursive_mutex _mutex;
 		std::optional<T> _stage;
 	};
 
@@ -76,7 +104,6 @@ namespace sl
 
 		void update(T val) override
 		{
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
 			_buffer[_head] = val;
 			_head = (_head + 1) % N;
 			
@@ -88,8 +115,6 @@ namespace sl
 
 		T get() override
 		{
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
-
 			if (!_count)
 			{
 				return static_cast<T>(0);
@@ -107,7 +132,6 @@ namespace sl
 
 		void reset() override
 		{
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
 			_buffer.fill(T(0));
 			_head = 0;
 			_count = 0;
@@ -129,15 +153,12 @@ namespace sl
 
 		void update(T val) override
 		{
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
 			_sum += val;
 			_count++;
 		}
 
 		T get() override
 		{
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
-
 			if (_count)
 			{
 				_last = _sum / static_cast<T>(_count);
@@ -150,7 +171,6 @@ namespace sl
 
 		void reset() override
 		{
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
 			_sum = static_cast<T>(0);
 			_count = 0;
 			_last = static_cast<T>(0);
@@ -172,24 +192,63 @@ namespace sl
 
 		void update(T val) override
 		{
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
 			_value = val;
 		}
 
 		T get() override
 		{
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
 			return _value;
 		}
 
 		void reset() override
 		{
-			std::lock_guard<std::recursive_mutex> lock(this->_mutex);
 			_value = static_cast<T>(0);
 			this->_stage.reset();
 		}
 
 	private:
 		T _value = static_cast<T>(0);
+	};
+
+	template <typename T, typename DURATION>
+	class frequency_counter
+	{
+	public:
+		void reset()
+		{
+			_counter = ZERO;
+		}
+
+		void update(std::chrono::nanoseconds time)
+		{
+			if (_counter == ZERO)
+			{
+				_start = time;
+			}
+
+			++_counter;
+		}
+
+		T get(std::chrono::nanoseconds end) const
+		{
+			const std::chrono::nanoseconds time_taken(end - _start);
+
+			if (time_taken.count() < 0)
+			{
+				return static_cast<T>(0);
+			}
+
+			const T time = static_cast<T>(time_taken.count());
+			return (_counter / time) * FREQUENCY;
+		}
+
+	private:
+		static constexpr T ZERO = static_cast<T>(0);
+
+		static constexpr T FREQUENCY =
+			static_cast<T>(std::chrono::duration_cast<std::chrono::nanoseconds>(DURATION(1)).count());
+
+		std::chrono::nanoseconds _start = std::chrono::nanoseconds::zero();
+		T _counter = ZERO;
 	};
 }
