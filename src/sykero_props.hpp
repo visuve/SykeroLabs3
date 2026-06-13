@@ -2,12 +2,6 @@
 
 namespace sl
 {
-	constexpr uint32_t BASE_NONE = 1;
-	constexpr uint32_t BASE_DECI = 10;
-	constexpr uint32_t BASE_CENTI = 100;
-	constexpr uint32_t BASE_MILLI = 1000;
-	constexpr uint32_t BASE_MICRO = 1'000'000;
-
 	class property
 	{
 	public:
@@ -55,12 +49,10 @@ namespace sl
 	template<typename T>
 	concept arithmetic = std::is_arithmetic_v<T>;
 
-	template <arithmetic T, uint32_t DIVIDER = BASE_NONE>
+	template <arithmetic T, typename R = std::ratio<1>>
 	class property_base : public property
 	{
 	public:
-		static_assert(DIVIDER > 0, "DIVIDER must be greater than zero");
-
 		virtual T get() = 0;
 		virtual void update(T) = 0;
 
@@ -71,7 +63,9 @@ namespace sl
 
 			if (ec == std::errc())
 			{
-				_stage = parsed / static_cast<T>(DIVIDER);
+				constexpr T multiplier = static_cast<T>(R::num);
+				constexpr T divisor = static_cast<T>(R::den);
+				_stage = (parsed * multiplier) / divisor;
 			}
 
 			return *this;
@@ -96,8 +90,8 @@ namespace sl
 	};
 
 	// A moving average property that maintains a circular buffer of the last N samples and calculates the average on demand.
-	template<size_t N, arithmetic T, uint32_t DIVIDER = BASE_NONE>
-	class rolling_average : public property_base<T, DIVIDER>
+	template<size_t N, arithmetic T, typename R = std::ratio<1>>
+	class rolling_average : public property_base<T, R>
 	{
 	public:
 		static_assert(N > 0, "N must be greater than zero");
@@ -145,12 +139,10 @@ namespace sl
 	};
 
 	// A sample average property that maintains a running sum and count of samples, and calculates the average on demand. The average is reset after each get() call.
-	template <arithmetic T, uint32_t DIVIDER = BASE_NONE>
-	class snapshot_average : public property_base<T, DIVIDER>
+	template <arithmetic T, typename R = std::ratio<1>>
+	class snapshot_average : public property_base<T, R>
 	{
 	public:
-		static_assert(DIVIDER > 0, "DIVIDER must be greater than zero");
-
 		void update(T val) override
 		{
 			_sum += val;
@@ -184,12 +176,10 @@ namespace sl
 	};
 
 	// A snapshot property that stores the most recently parsed value and only updates the current value when commit() is called. The undo() function discards the snapshot.
-	template <arithmetic T, uint32_t DIVIDER = BASE_NONE>
-	class snapshot : public property_base<T, DIVIDER>
+	template <arithmetic T, typename R = std::ratio<1>>
+	class snapshot : public property_base<T, R>
 	{
 	public:
-		static_assert(DIVIDER > 0, "DIVIDER must be greater than zero");
-
 		void update(T val) override
 		{
 			_value = val;
@@ -210,7 +200,7 @@ namespace sl
 		T _value = static_cast<T>(0);
 	};
 
-	template <typename T, typename DURATION>
+	template <typename T, typename DUR>
 	class frequency_counter
 	{
 	public:
@@ -246,7 +236,7 @@ namespace sl
 		static constexpr T ZERO = static_cast<T>(0);
 
 		static constexpr T FREQUENCY =
-			static_cast<T>(std::chrono::duration_cast<std::chrono::nanoseconds>(DURATION(1)).count());
+			static_cast<T>(std::chrono::duration_cast<std::chrono::nanoseconds>(DUR(1)).count());
 
 		std::chrono::nanoseconds _start = std::chrono::nanoseconds::zero();
 		T _counter = ZERO;

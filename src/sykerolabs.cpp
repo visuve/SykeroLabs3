@@ -70,9 +70,8 @@ namespace sl
 
 	struct tds_properties
 	{
-		// base value is decisiemens per centimeter, convert to microsiemens per centimeter
-		snapshot<uint32_t, BASE_DECI> pool1;
-		snapshot<uint32_t, BASE_DECI> pool2;
+		snapshot<uint32_t, std::deci> pool1;
+		snapshot<uint32_t, std::deci> pool2;
 	};
 
 	property_group<pump_properties> pump_data;
@@ -498,8 +497,8 @@ namespace sl
 		log_debug("main loop %d started.", gettid());
 
 		// This is basically a 10 min average; I do not want the fans to toggle on and off possibly every minute
-		rolling_average<10, float, BASE_MILLI> air_temperature; // base value is millicelcius, convert to celcius
-		snapshot<float, BASE_MILLI> cpu_temperature; // base value is millicelcius, convert to celcius
+		rolling_average<10, float, std::milli> air_temperature;
+		snapshot<float, std::milli> cpu_temperature;
 		snapshot<float> air_humidity; // relative percent
 		snapshot<float> air_pressure; // hectopascal
 

@@ -8,17 +8,17 @@ namespace sl::mppt
 	// https://www.victronenergy.com/upload/documents/VE.Direct-Protocol-3.34.pdf
 	struct mppt_properties
 	{
-		snapshot_average<float, BASE_MILLI> battery_voltage;
-		snapshot_average<float, BASE_MILLI> battery_current;
-		snapshot_average<float, BASE_MILLI> panel_voltage;
-		snapshot_average<float, BASE_NONE> panel_power;
-		snapshot_average<float, BASE_MILLI> load_current;
+		snapshot_average<float, std::milli> battery_voltage;
+		snapshot_average<float, std::milli> battery_current;
+		snapshot_average<float, std::milli> panel_voltage;
+		snapshot_average<float> panel_power;
+		snapshot_average<float, std::milli> load_current;
 
-		snapshot<int, BASE_NONE> state;
-		snapshot<int, BASE_NONE> error;
+		snapshot<int> state;
+		snapshot<int> error;
 
-		snapshot<float, BASE_CENTI> yield_total;
-		snapshot<int, BASE_NONE> max_power_today;
+		snapshot<float, std::centi> yield_total;
+		snapshot<int> max_power_today;
 
 		const std::array<std::pair<std::string, property*>, 9> prop_map;
 
